@@ -1,0 +1,22 @@
+digraph G {
+  graph [rankdir=LR, bgcolor="transparent", pad="0.3", nodesep="0.55", ranksep="0.7"];
+  node [shape=box, style="rounded,filled", fontname="Inter,Arial", fontsize=12, color="#334155", fillcolor="#f8fafc", margin="0.14,0.09"];
+  edge [fontname="Inter,Arial", fontsize=10, color="#64748b", arrowsize=0.8];
+
+  host [label="Host machine\np1 folder", fillcolor="#e0f2fe", color="#0284c7"];
+  shared [label="p1/shared/token\nmounted as /vagrant_shared", fillcolor="#fef9c3", color="#ca8a04"];
+
+  subgraph cluster_vms {
+    label="Vagrant + VirtualBox";
+    color="#94a3b8";
+    style="rounded,dashed";
+    server [label="hrobinS\n192.168.56.110\nK3s server\ncontrol plane", fillcolor="#dbeafe", color="#2563eb"];
+    worker [label="hrobinSW\n192.168.56.111\nK3s agent\nworker node", fillcolor="#dcfce7", color="#16a34a"];
+  }
+
+  host -> server [label="vagrant up"];
+  host -> worker [label="vagrant up"];
+  server -> shared [label="writes node token"];
+  shared -> worker [label="worker reads token"];
+  worker -> server [label="joins API\n:6443"];
+}

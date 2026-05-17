@@ -1,0 +1,16 @@
+digraph G {
+  graph [rankdir=TB, bgcolor="transparent", pad="0.3", nodesep="0.55", ranksep="0.7"];
+  node [shape=box, style="rounded,filled", fontname="Inter,Arial", fontsize=13, color="#334155", fillcolor="#f8fafc", margin="0.14,0.09"];
+  edge [fontname="Inter,Arial", fontsize=11, color="#64748b", arrowsize=0.8];
+
+  subject [label="Inception-of-Things\nKubernetes learning project", fillcolor="#dbeafe", color="#2563eb", fontsize=16];
+  p1 [label="p1\nK3s + Vagrant\n2 VMs: server + worker", fillcolor="#ecfeff", color="#0891b2"];
+  p2 [label="p2\nK3s + apps\n3 web apps + Ingress", fillcolor="#f0fdf4", color="#16a34a"];
+  p3 [label="p3\nK3d + Argo CD\nGitOps from GitHub", fillcolor="#fff7ed", color="#ea580c"];
+  bonus [label="bonus\nLocal GitLab\nGitOps without GitHub", fillcolor="#fdf2f8", color="#db2777"];
+
+  subject -> p1 [label="cluster basics"];
+  subject -> p2 [label="apps + routing"];
+  subject -> p3 [label="GitOps"];
+  subject -> bonus [label="local GitLab"];
+}

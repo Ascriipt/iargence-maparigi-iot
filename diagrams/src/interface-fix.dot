@@ -1,0 +1,17 @@
+digraph G {
+  graph [rankdir=LR, bgcolor="transparent", pad="0.3", nodesep="0.55", ranksep="0.7"];
+  node [shape=box, style="rounded,filled", fontname="Inter,Arial", fontsize=12, color="#334155", fillcolor="#f8fafc", margin="0.14,0.09"];
+  edge [fontname="Inter,Arial", fontsize=10, color="#64748b", arrowsize=0.8];
+
+  bad [label="Old assumption\n--flannel-iface=eth1", fillcolor="#fee2e2", color="#dc2626"];
+  error [label="K3s failure\ninterface eth1 not found", fillcolor="#fee2e2", color="#dc2626"];
+  ip [label="Static private IP\n192.168.56.110 / .111", fillcolor="#dbeafe", color="#2563eb"];
+  detect [label="ip -o addr show to IP/32", fillcolor="#fef9c3", color="#ca8a04"];
+  iface [label="Detected real interface\nenp0s8", fillcolor="#dcfce7", color="#16a34a"];
+  k3s [label="K3s install\n--flannel-iface=${FLANNEL_IFACE}", fillcolor="#dcfce7", color="#16a34a"];
+
+  bad -> error;
+  ip -> detect;
+  detect -> iface;
+  iface -> k3s;
+}

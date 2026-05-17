@@ -1,0 +1,26 @@
+digraph G {
+  graph [rankdir=LR, bgcolor="transparent", pad="0.3", nodesep="0.55", ranksep="0.75"];
+  node [shape=box, style="rounded,filled", fontname="Inter,Arial", fontsize=12, color="#334155", fillcolor="#f8fafc", margin="0.14,0.09"];
+  edge [fontname="Inter,Arial", fontsize=10, color="#64748b", arrowsize=0.8];
+
+  setup [label="bonus/scripts/setup.sh", fillcolor="#fef9c3", color="#ca8a04"];
+  update [label="update_app_to_v2.sh\ncommits v2", fillcolor="#e0f2fe", color="#0284c7"];
+
+  subgraph cluster_bonus {
+    label="K3d cluster: iot-bonus";
+    color="#94a3b8";
+    style="rounded,dashed";
+    gitlab [label="Namespace gitlab\nLocal GitLab\nroot/iot-gitops", fillcolor="#fdf2f8", color="#db2777"];
+    argo [label="Namespace argocd\nArgo CD", fillcolor="#fff7ed", color="#ea580c"];
+    dev [label="Namespace dev", fillcolor="#ecfeff", color="#0891b2"];
+    app [label="playground app\nv1 then v2", fillcolor="#dcfce7", color="#16a34a"];
+  }
+
+  setup -> gitlab [label="installs + creates repo"];
+  setup -> argo [label="installs"];
+  setup -> dev [label="creates"];
+  gitlab -> argo [label="local Git source"];
+  argo -> dev [label="syncs manifests"];
+  dev -> app;
+  update -> gitlab [label="push image change"];
+}

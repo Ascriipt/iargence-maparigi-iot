@@ -1,0 +1,27 @@
+digraph G {
+  graph [rankdir=LR, bgcolor="transparent", pad="0.3", nodesep="0.55", ranksep="0.75"];
+  node [shape=box, style="rounded,filled", fontname="Inter,Arial", fontsize=12, color="#334155", fillcolor="#f8fafc", margin="0.14,0.09"];
+  edge [fontname="Inter,Arial", fontsize=10, color="#64748b", arrowsize=0.8];
+
+  github [label="Public GitHub repo\np3/confs/app", fillcolor="#f8fafc", color="#111827"];
+  setup [label="scripts/setup.sh\ncreates cluster + Argo app", fillcolor="#fef9c3", color="#ca8a04"];
+  user [label="Evaluator\npushes v1 -> v2", fillcolor="#e0f2fe", color="#0284c7"];
+
+  subgraph cluster_k3d {
+    label="K3d cluster: iot-p3";
+    color="#94a3b8";
+    style="rounded,dashed";
+    argo [label="Namespace argocd\nArgo CD", fillcolor="#fff7ed", color="#ea580c"];
+    dev [label="Namespace dev", fillcolor="#ecfeff", color="#0891b2"];
+    app [label="playground Deployment\nwil42/playground:v1 or v2", fillcolor="#dcfce7", color="#16a34a"];
+    ingress [label="Ingress + Service\nlocalhost:8888", fillcolor="#fae8ff", color="#c026d3"];
+  }
+
+  setup -> argo [label="installs"];
+  setup -> dev [label="creates"];
+  user -> github [label="git push"];
+  github -> argo [label="watched by"];
+  argo -> dev [label="syncs manifests"];
+  dev -> app;
+  app -> ingress;
+}

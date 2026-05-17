@@ -1,0 +1,32 @@
+digraph G {
+  graph [rankdir=TB, bgcolor="transparent", pad="0.3", nodesep="0.5", ranksep="0.65"];
+  node [shape=box, style="rounded,filled", fontname="Inter,Arial", fontsize=12, color="#334155", fillcolor="#f8fafc", margin="0.14,0.09"];
+  edge [fontname="Inter,Arial", fontsize=10, color="#64748b", arrowsize=0.8];
+
+  client [label="Client\ncurl or browser", fillcolor="#e0f2fe", color="#0284c7"];
+  ip [label="192.168.56.110:80", fillcolor="#fef9c3", color="#ca8a04"];
+
+  subgraph cluster_vm {
+    label="maparigiS VM - K3s server";
+    color="#94a3b8";
+    style="rounded,dashed";
+    traefik [label="Traefik\nIngress controller", fillcolor="#ede9fe", color="#7c3aed"];
+    ingress [label="Ingress webapps\nHost based routing", fillcolor="#fae8ff", color="#c026d3"];
+    svc1 [label="Service app1", fillcolor="#ecfeff", color="#0891b2"];
+    svc2 [label="Service app2", fillcolor="#ecfeff", color="#0891b2"];
+    svc3 [label="Service app3", fillcolor="#ecfeff", color="#0891b2"];
+    app1 [label="Deployment app1\n1 pod\nnginx + ConfigMap", fillcolor="#dcfce7", color="#16a34a"];
+    app2 [label="Deployment app2\n3 pods\nnginx + ConfigMap", fillcolor="#dcfce7", color="#16a34a"];
+    app3 [label="Deployment app3\n1 pod\nnginx + ConfigMap", fillcolor="#dcfce7", color="#16a34a"];
+  }
+
+  client -> ip;
+  ip -> traefik;
+  traefik -> ingress;
+  ingress -> svc1 [label="Host app1.com"];
+  ingress -> svc2 [label="Host app2.com"];
+  ingress -> svc3 [label="default / app3.com"];
+  svc1 -> app1;
+  svc2 -> app2;
+  svc3 -> app3;
+}
