@@ -7,7 +7,7 @@
     server.vm.hostname = "hrobinS"
     server.vm.network "private_network", ip: "192.168.56.110"
     server.vm.provider "virtualbox" do |vb|
-      vb.memory = 1024
+      vb.memory = 2048
       vb.cpus = 1
     end
     server.vm.provision "shell", path: "scripts/server.sh"

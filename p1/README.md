@@ -1,151 +1,98 @@
-# Part 1: K3s With One Server and One Worker
+# Inception-of-Things: Part 1
 
-This part creates a small K3s cluster with two virtual machines:
+This folder is the `p1` mandatory part of the **Inception-of-Things** project.
 
-- `hrobinS`: the K3s server node at `192.168.56.110`
-- `hrobinSW`: the K3s worker node at `192.168.56.111`
+The subject asks for a small K3s cluster created with Vagrant. The cluster must use two virtual machines:
 
-The server starts the Kubernetes control plane. The worker joins that server and runs workloads as part of the same cluster.
+- one server/controller node;
+- one worker/agent node.
+
+In this implementation, the machines are:
+
+- `hrobinS`: K3s server node, `192.168.56.110`
+- `hrobinSW`: K3s worker node, `192.168.56.111`
+
+The names follow the subject rule: use a team login, then add `S` for the server and `SW` for the server-worker. If the evaluated login needs to be different, update the VM names and hostnames in `vagrantfile`.
+
+## Subject Requirements Covered
+
+The PDF asks Part 1 to provide:
+
+- two machines managed by Vagrant;
+- a recent stable Linux distribution;
+- minimal resources, usually 1 CPU and 512 MB or 1024 MB RAM;
+- hostnames based on a team login, ending in `S` and `SW`;
+- static private IPs:
+  - server: `192.168.56.110`;
+  - worker: `192.168.56.111`;
+- passwordless SSH access through Vagrant;
+- K3s installed in controller/server mode on the first machine;
+- K3s installed in agent mode on the second machine;
+- `kubectl` available for checking the cluster.
+
+This project uses `ubuntu/jammy64`, VirtualBox, Vagrant shell provisioning, and K3s.
 
 ## Files
 
-- `vagrantfile`: defines the two virtual machines.
-- `scripts/server.sh`: installs K3s in server mode.
-- `scripts/worker.sh`: installs K3s in agent mode and joins the server.
-- `shared/`: synced folder used to pass the K3s node token from the server VM to the worker VM.
+- `vagrantfile`: defines both VMs, their hostnames, IPs, resources, synced folder, and provisioning scripts.
+- `scripts/server.sh`: installs and configures K3s on `hrobinS`.
+- `scripts/worker.sh`: installs and configures the K3s agent on `hrobinSW`.
+- `shared/`: synced folder mounted at `/vagrant_shared` inside both VMs. It is used to pass the server join token to the worker.
 
-## Main Concepts
+## How the Cluster Is Built
 
-### Vagrant
+Vagrant starts `hrobinS` first. That VM gets the static private IP `192.168.56.110`.
 
-Vagrant is used to create reproducible virtual machines from a configuration file. Instead of manually creating machines in VirtualBox, the `vagrantfile` describes:
+The server provisioning script:
 
-- which Linux image to use;
-- the hostname of each VM;
-- each private IP address;
-- how much CPU and memory each VM gets;
-- which provisioning script runs after boot.
+1. Finds the network interface that owns `192.168.56.110`.
+2. Installs K3s in server mode.
+3. Binds and advertises K3s on `192.168.56.110`.
+4. Configures Flannel to use the private network interface.
+5. Waits until K3s has created the node token and kubeconfig.
+6. Waits until `kubectl get nodes` works.
+7. Copies the join token to `/vagrant_shared/token`.
+8. Copies the kubeconfig to `/home/vagrant/.kube/config`.
 
-In this project, the VMs use the `ubuntu/jammy64` box.
+Then Vagrant starts `hrobinSW`. That VM gets the static private IP `192.168.56.111`.
 
-### VirtualBox Provider
+The worker provisioning script:
 
-The provider is the virtualization backend. Here, Vagrant uses VirtualBox. The block:
+1. Finds the network interface that owns `192.168.56.111`.
+2. Waits until `/vagrant_shared/token` exists.
+3. Reads the server token.
+4. Installs K3s in agent mode.
+5. Joins the server at `https://192.168.56.110:6443`.
 
-```ruby
-server.vm.provider "virtualbox" do |vb|
-  vb.memory = 1024
-  vb.cpus = 1
-end
-```
+When everything is correct, the server sees both nodes in the same Kubernetes cluster.
 
-sets the VM resources.
+## Correction Notes
 
-### Private Network
-
-Each VM has a static private IP:
-
-- server: `192.168.56.110`
-- worker: `192.168.56.111`
-
-These addresses let the VMs communicate with each other and let the host machine reach them directly.
-
-### Synced Folder
-
-The line:
-
-```ruby
-config.vm.synced_folder "./shared", "/vagrant_shared"
-```
-
-mounts the local `p1/shared` directory inside both VMs at `/vagrant_shared`.
-
-This is used for a simple handoff:
-
-1. the server creates a cluster token;
-2. the server writes it to `/vagrant_shared/token`;
-3. the worker waits until that file exists;
-4. the worker reads the token and uses it to join the cluster.
-
-### K3s
-
-K3s is a lightweight Kubernetes distribution. It provides the Kubernetes API server, scheduler, controller manager, container runtime, networking, and useful defaults in a smaller package than standard Kubernetes.
-
-K3s has two important modes here:
-
-- server mode: runs the Kubernetes control plane;
-- agent mode: joins an existing server and runs workloads.
-
-### Server Node
-
-The server script installs K3s with:
+The first version failed because it hard-coded the private network interface as `eth1`:
 
 ```sh
-curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="..." sh -
+--flannel-iface=eth1
 ```
 
-The important options are:
+On this `ubuntu/jammy64` box, the private interface is actually named `enp0s8`. Modern Linux distributions often use predictable interface names instead of older names like `eth0` and `eth1`.
 
-- `--bind-address=192.168.56.110`: makes K3s bind to the server private IP.
-- `--advertise-address=192.168.56.110`: tells other nodes that this is the server address.
-- `--node-ip=192.168.56.110`: registers the node with this IP inside Kubernetes.
-- `--flannel-iface=eth1`: tells Flannel to use the private network interface for pod networking.
+K3s failed with an error like:
 
-After installation, the server copies:
+```text
+unable to find interface eth1
+```
+
+The fix is to discover the correct interface from the VM's static private IP:
 
 ```sh
-/var/lib/rancher/k3s/server/node-token
+FLANNEL_IFACE=$(ip -o addr show to "${SERVER_IP}/32" | awk '{print $2; exit}')
 ```
 
-to the shared folder. That token is required by workers that want to join the cluster.
+The worker does the same lookup with `WORKER_IP`.
 
-### Worker Node
+This matches the warning in the subject PDF: do not assume old interface names; inspect the VM network configuration and adapt the commands to the real interface names.
 
-The worker script waits for the token:
-
-```sh
-while [ ! -f /vagrant_shared/token ]; do
-  sleep 2
-done
-```
-
-Then it installs K3s in agent mode with:
-
-```sh
-K3S_URL=https://192.168.56.110:6443
-K3S_TOKEN=$TOKEN
-```
-
-`K3S_URL` points to the Kubernetes API server on the server node. Port `6443` is the default Kubernetes API port.
-
-`K3S_TOKEN` proves that the worker is allowed to join the cluster.
-
-### Flannel
-
-Flannel is the default network layer used by K3s. It creates the pod network, so pods can communicate even when they run on different nodes.
-
-The option `--flannel-iface=eth1` is important in Vagrant because VMs often have multiple interfaces:
-
-- one NAT interface for internet access;
-- one private interface for host-only networking.
-
-Using `eth1` makes the cluster use the private network instead of the NAT interface.
-
-### kubeconfig
-
-The server script copies:
-
-```sh
-/etc/rancher/k3s/k3s.yaml
-```
-
-to:
-
-```sh
-/home/vagrant/.kube/config
-```
-
-This file is the Kubernetes client configuration. It lets the `vagrant` user run `kubectl` without passing extra config options.
+The server VM was also increased to `2048` MB RAM. The subject recommends minimal resources, but K3s was unstable at `1024` MB in this environment while the worker was joining. The worker remains at `1024` MB.
 
 ## How to Run
 
@@ -155,67 +102,103 @@ From the `p1` directory:
 vagrant up
 ```
 
-To connect to the server:
+Connect to the server:
 
 ```sh
 vagrant ssh hrobinS
 ```
 
-To connect to the worker:
+Connect to the worker:
 
 ```sh
 vagrant ssh hrobinSW
 ```
 
-Inside the server VM, check the cluster:
+## How to Verify
+
+From inside the server VM:
 
 ```sh
 kubectl get nodes -o wide
 ```
 
-You should see two nodes: one server/control-plane node and one worker node.
+Expected result:
+
+```text
+NAME       STATUS   ROLES           INTERNAL-IP
+hrobins    Ready    control-plane   192.168.56.110
+hrobinsw   Ready    <none>          192.168.56.111
+```
+
+The exact age, version, kernel, and runtime columns can be different.
+
+You can also run the check from the host:
+
+```sh
+vagrant ssh hrobinS -c 'kubectl get nodes -o wide'
+```
 
 ## Useful Commands
 
-Check running K3s services:
+Check the Vagrant machines:
 
 ```sh
-systemctl status k3s
-systemctl status k3s-agent
+vagrant status
 ```
 
-Check nodes:
+Check the server K3s service:
 
 ```sh
-kubectl get nodes
+vagrant ssh hrobinS -c 'sudo systemctl status k3s --no-pager'
 ```
 
-Check system pods:
+Check the worker K3s service:
 
 ```sh
-kubectl get pods -A
+vagrant ssh hrobinSW -c 'sudo systemctl status k3s-agent --no-pager'
 ```
 
-Destroy the VMs:
+Check the VM interfaces:
+
+```sh
+vagrant ssh hrobinS -c 'ip a'
+vagrant ssh hrobinSW -c 'ip a'
+```
+
+Check all Kubernetes pods:
+
+```sh
+vagrant ssh hrobinS -c 'kubectl get pods -A'
+```
+
+Destroy the environment:
 
 ```sh
 vagrant destroy -f
 ```
 
-## Request Flow
+## Current Verified State
 
-Part 1 does not deploy custom applications. Its purpose is to prove that the cluster exists and that the worker successfully joined the server.
+After the corrections, both VMs were running and both nodes were visible from the server:
 
-The flow is:
+```text
+hrobins    Ready    control-plane   192.168.56.110
+hrobinsw   Ready    <none>          192.168.56.111
+```
 
-1. Vagrant creates the server VM.
-2. The server installs K3s in server mode.
-3. The server writes the join token into the synced folder.
-4. Vagrant creates the worker VM.
-5. The worker waits for the token.
-6. The worker installs K3s in agent mode and joins the server.
-7. `kubectl get nodes` on the server should show both machines.
+That satisfies the purpose of Part 1: prove that a K3s server and a K3s worker can be created with Vagrant and joined into one Kubernetes cluster.
 
-## Evaluation Notes
+## Submission Context
 
-The subject usually expects hostnames based on your login. If your login is `maparigi`, the names would normally be `maparigiS` and `maparigiSW`. This directory currently uses `hrobinS` and `hrobinSW`, so update the VM names and hostnames if needed before evaluation.
+The PDF expects the mandatory work to be organized at the repository root as:
+
+- `p1`
+- `p2`
+- `p3`
+
+This README documents only `p1`. The goal of this part is not to deploy applications yet. That comes later in the subject:
+
+- Part 2: one K3s VM with three simple applications and Ingress routing.
+- Part 3: K3d with Argo CD and a GitHub-driven deployment.
+
+For this folder, the important evaluation point is that `vagrant up` creates the two machines and that `kubectl get nodes` shows the server and worker as `Ready`.

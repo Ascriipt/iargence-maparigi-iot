@@ -1,13 +1,26 @@
 #!/bin/bash
 set -euo pipefail
 
+SERVER_IP="192.168.56.110"
+FLANNEL_IFACE=$(ip -o addr show to "${SERVER_IP}/32" | awk '{print $2; exit}')
+
+if [ -z "$FLANNEL_IFACE" ]; then
+  echo "Unable to find network interface for ${SERVER_IP}" >&2
+  exit 1
+fi
+
 apt-get update -y
 apt-get install -y curl
 
-curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--bind-address=192.168.56.110 \
-  --advertise-address=192.168.56.110 \
-  --node-ip=192.168.56.110 \
-  --flannel-iface=eth1" sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--bind-address=${SERVER_IP} \
+  --advertise-address=${SERVER_IP} \
+  --node-ip=${SERVER_IP} \
+  --write-kubeconfig-mode=644 \
+  --flannel-iface=${FLANNEL_IFACE}" sh -
+
+while [ ! -f /etc/rancher/k3s/k3s.yaml ]; do
+  sleep 2
+done
 
 mkdir -p /home/vagrant/.kube
 cp /etc/rancher/k3s/k3s.yaml /home/vagrant/.kube/config
@@ -19,7 +32,7 @@ done
 
 kubectl wait --for=condition=Ready nodes --all --timeout=180s
 kubectl apply -f /vagrant/confs/apps.yaml
-kubectl -n kube-system rollout status deployment/traefik --timeout=180s || true
+kubectl -n kube-system rollout status deployment/traefik --timeout=180s
 kubectl rollout status deployment/app1 --timeout=180s
 kubectl rollout status deployment/app2 --timeout=180s
 kubectl rollout status deployment/app3 --timeout=180s

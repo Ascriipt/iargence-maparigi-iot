@@ -1,243 +1,119 @@
-# Part 2: K3s With Three Web Applications
+# Inception-of-Things: Part 2
 
-This part creates one virtual machine running K3s in server mode, then deploys three web applications into that K3s cluster.
+This folder is the `p2` mandatory part of the **Inception-of-Things** project.
 
-The VM is:
+The subject asks for one Vagrant virtual machine running K3s in server mode. Inside that K3s cluster, three simple web applications must be deployed and routed by the HTTP `Host` header.
 
-- `maparigiS` at `192.168.56.110`
+In this implementation, the VM is:
 
-The three apps are routed by the HTTP `Host` header:
+- `maparigiS`: K3s server node, `192.168.56.110`
 
-- `app1.com` displays `app1`
-- `app2.com` displays `app2`
-- any other host displays `app3`
+The hostname follows the subject rule: use a team login, then add `S` for the server.
 
-Application 2 has 3 replicas, as required by the subject.
+## Subject Requirements Covered
+
+The PDF asks Part 2 to provide:
+
+- one virtual machine managed by Vagrant;
+- a recent stable Linux distribution;
+- K3s installed in server mode;
+- the VM named with a team login followed by `S`;
+- the VM reachable at `192.168.56.110`;
+- three web applications running in K3s;
+- routing based on the request `Host` header:
+  - `app1.com` must display app1;
+  - `app2.com` must display app2;
+  - any other host must display app3 by default;
+- app2 must run with 3 replicas;
+- the Ingress must be shown during evaluation.
+
+This project uses `ubuntu/jammy64`, VirtualBox, Vagrant shell provisioning, K3s, nginx containers, and the default K3s Traefik Ingress controller.
 
 ## Files
 
-- `Vagrantfile`: defines the single VM.
-- `scripts/server.sh`: installs K3s and applies the Kubernetes manifests.
-- `confs/apps.yaml`: defines the ConfigMaps, Deployments, Services, and Ingress.
-
-## Main Concepts
-
-### Vagrant
-
-Vagrant creates the VM from code. The `Vagrantfile` says:
-
-- use Ubuntu Jammy;
-- create one VM named `maparigiS`;
-- set its hostname to `maparigiS`;
-- assign the private IP `192.168.56.110`;
-- give it CPU and memory;
-- run `scripts/server.sh` during provisioning.
-
-### K3s Server Mode
-
-K3s is installed in server mode because this part only needs one machine. The server node runs the Kubernetes control plane and can also run application pods.
-
-The install command uses:
-
-```sh
-INSTALL_K3S_EXEC="--bind-address=192.168.56.110 \
-  --advertise-address=192.168.56.110 \
-  --node-ip=192.168.56.110 \
-  --flannel-iface=eth1"
-```
-
-Those options make K3s use the VM private network address.
-
-### Kubernetes
-
-Kubernetes runs applications as containers and manages their networking, scaling, and routing.
-
-This part uses these Kubernetes resources:
-
-- ConfigMap
-- Deployment
-- Service
-- Ingress
-
-They are all declared in `confs/apps.yaml`.
-
-### ConfigMap
-
-A ConfigMap stores configuration data as Kubernetes objects.
-
-Here, each app has a ConfigMap containing a simple `index.html`:
-
-- `app1-content`
-- `app2-content`
-- `app3-content`
-
-Each nginx container mounts its ConfigMap at:
-
-```sh
-/usr/share/nginx/html
-```
-
-That is the default directory nginx serves static files from. Because the ConfigMap contains `index.html`, each app shows a different page without needing custom Docker images.
-
-### Deployment
-
-A Deployment tells Kubernetes how to run and maintain pods.
-
-Each app has one Deployment:
-
-- `app1`
-- `app2`
-- `app3`
-
-The Deployment defines:
-
-- which container image to use;
-- how many replicas should exist;
-- which labels identify the pods;
-- which volume should be mounted.
-
-For `app2`, the manifest contains:
-
-```yaml
-replicas: 3
-```
-
-This means Kubernetes should keep three `app2` pods running. If one dies, Kubernetes creates another one.
-
-### Pod
-
-A pod is the smallest deployable unit in Kubernetes. In this setup, each pod contains one nginx container.
-
-For `app2`, the Deployment creates three separate pods. The Service for `app2` can send traffic to any of them.
-
-### Labels and Selectors
-
-Labels are key-value pairs attached to Kubernetes objects. Selectors use those labels to find matching objects.
-
-Example:
-
-```yaml
-labels:
-  app: app2
-```
-
-The `app2` Service has:
-
-```yaml
-selector:
-  app: app2
-```
-
-That means the Service sends traffic to pods labeled `app: app2`.
-
-### Service
-
-Pods can be replaced at any time, so their IP addresses are not stable. A Service provides a stable internal network name and IP for a group of pods.
-
-This project has one Service per app:
-
-- `app1`
-- `app2`
-- `app3`
-
-Each Service listens on port `80` and forwards to the nginx container port `80`.
-
-### Ingress
-
-An Ingress exposes HTTP routes from outside the cluster to Services inside the cluster.
-
-This project has one Ingress named `webapps`.
-
-It contains two explicit host rules:
-
-```yaml
-- host: app1.com
-```
-
-routes to the `app1` Service.
-
-```yaml
-- host: app2.com
-```
-
-routes to the `app2` Service.
-
-The Ingress also has:
-
-```yaml
-defaultBackend:
-  service:
-    name: app3
-```
-
-That means requests that do not match `app1.com` or `app2.com` go to `app3`.
-
-### Traefik
-
-K3s installs Traefik by default. Traefik is the Ingress controller.
-
-The Ingress resource is only a routing rule. Traefik is the running component that reads that rule and handles real HTTP requests on port `80`.
-
-The request path is:
-
-1. browser or `curl` sends request to `192.168.56.110`;
-2. Traefik receives the HTTP request;
-3. Traefik checks the `Host` header;
-4. Traefik selects the matching Ingress rule;
-5. Traefik forwards the request to the correct Service;
-6. the Service forwards the request to one matching pod;
-7. nginx returns the app page.
-
-### Host Header
-
-The subject asks for different behavior depending on the `HOST` used when making a request to the same IP.
-
-In HTTP, the `Host` header tells the server which domain name the client requested. For example:
-
-```sh
-curl -H "Host: app1.com" http://192.168.56.110
-```
-
-This connects to `192.168.56.110`, but the HTTP request says the desired host is `app1.com`.
-
-The Ingress uses that value to choose the app.
-
-### `/etc/hosts`
-
-Browsers usually do not let you manually set the `Host` header. To test in a browser, map the test domains to the VM IP on your host machine:
-
-```txt
-192.168.56.110 app1.com
-192.168.56.110 app2.com
-```
-
-Then opening `http://app1.com` reaches `192.168.56.110` with `Host: app1.com`.
-
-Opening `http://app2.com` reaches the same IP with `Host: app2.com`.
-
-Opening `http://192.168.56.110` should use the default backend and display `app3`.
-
-## How Provisioning Works
-
-When you run `vagrant up`, Vagrant starts the VM and runs `scripts/server.sh`.
-
-The script:
-
-1. updates apt packages;
-2. installs `curl`;
-3. installs K3s in server mode;
-4. copies the kubeconfig to `/home/vagrant/.kube/config`;
-5. waits until the node is ready;
-6. applies `confs/apps.yaml`;
-7. waits for the app deployments to roll out.
-
-The line:
+- `Vagrantfile`: defines the single VM, hostname, IP, resources, and provisioning script.
+- `scripts/server.sh`: installs K3s, waits for the node, applies the Kubernetes manifests, and waits for rollouts.
+- `confs/apps.yaml`: defines the ConfigMaps, Deployments, Services, and Ingress for the three applications.
+
+## How the Cluster Is Built
+
+Vagrant starts `maparigiS` with the static private IP `192.168.56.110`.
+
+The provisioning script:
+
+1. Installs `curl`.
+2. Finds the network interface that owns `192.168.56.110`.
+3. Installs K3s in server mode.
+4. Binds and advertises K3s on `192.168.56.110`.
+5. Configures Flannel to use the private network interface.
+6. Copies the kubeconfig to `/home/vagrant/.kube/config`.
+7. Waits until the node is ready.
+8. Applies `/vagrant/confs/apps.yaml`.
+9. Waits for Traefik and the three app deployments to roll out.
+
+The project directory is mounted inside the VM at `/vagrant`, which is why the script can apply:
 
 ```sh
 kubectl apply -f /vagrant/confs/apps.yaml
 ```
 
-works because Vagrant automatically mounts the project directory inside the VM at `/vagrant`.
+## Applications
+
+Each application uses nginx and serves a different `index.html` from a ConfigMap.
+
+- `app1-content` serves a page containing `app1`.
+- `app2-content` serves a page containing `app2`.
+- `app3-content` serves a page containing `app3`.
+
+There is one Deployment and one Service per app:
+
+- `app1`: 1 replica;
+- `app2`: 3 replicas, as required by the subject;
+- `app3`: 1 replica.
+
+The app2 replica count is declared in `confs/apps.yaml`:
+
+```yaml
+replicas: 3
+```
+
+## Ingress Routing
+
+K3s installs Traefik by default. Traefik reads the Kubernetes Ingress and handles HTTP traffic on port `80`.
+
+The Ingress is named `webapps`.
+
+It routes:
+
+- `Host: app1.com` to the `app1` Service;
+- `Host: app2.com` to the `app2` Service;
+- `Host: app3.com` to the `app3` Service;
+- any other host, including direct IP access, to `app3`.
+
+The final catch-all route is important for the subject requirement that app3 is selected by default.
+
+## Correction Notes
+
+The first run failed for the same reason as Part 1: the provisioning script hard-coded the Flannel interface as `eth1`.
+
+On this `ubuntu/jammy64` VM, the private interface is named `enp0s8`, not `eth1`. K3s failed during startup because it could not find the requested interface.
+
+The fix is to detect the interface from the static private IP:
+
+```sh
+SERVER_IP="192.168.56.110"
+FLANNEL_IFACE=$(ip -o addr show to "${SERVER_IP}/32" | awk '{print $2; exit}')
+```
+
+Then K3s is installed with:
+
+```sh
+--flannel-iface=${FLANNEL_IFACE}
+```
+
+This follows the subject PDF warning that modern Linux distributions use predictable interface names such as `enp0s8` instead of old `eth0` or `eth1` names.
+
+The Ingress was also corrected. The default backend existed, but Traefik returned `404` for unknown hosts. A hostless catch-all rule was added so that unknown hosts and direct IP access route to app3 reliably.
 
 ## How to Run
 
@@ -247,83 +123,108 @@ From the `p2` directory:
 vagrant up
 ```
 
-SSH into the VM:
+If the VM already exists and only the scripts/manifests changed:
+
+```sh
+vagrant provision maparigiS
+```
+
+Connect to the VM:
 
 ```sh
 vagrant ssh maparigiS
 ```
 
+## How to Verify
+
 Check the node:
 
 ```sh
-kubectl get nodes -o wide
+vagrant ssh maparigiS -c 'kubectl get nodes -o wide'
 ```
 
-Check the apps:
+Expected shape:
+
+```text
+NAME        STATUS   ROLES           INTERNAL-IP
+maparigis   Ready    control-plane   192.168.56.110
+```
+
+Check the deployed resources:
 
 ```sh
-kubectl get pods
-kubectl get deployments
-kubectl get services
-kubectl get ingress
+vagrant ssh maparigiS -c 'kubectl get pods,deployments,services,ingress -o wide'
 ```
 
 You should see:
 
-- one ready node;
-- one `app1` pod;
-- three `app2` pods;
-- one `app3` pod;
+- one Ready node;
+- one running app1 pod;
+- three running app2 pods;
+- one running app3 pod;
 - one Ingress named `webapps`.
 
-## How to Test
+## How to Test Routing
 
-From your host machine:
+From the VM:
 
 ```sh
 curl -H "Host: app1.com" http://192.168.56.110
 curl -H "Host: app2.com" http://192.168.56.110
+curl -H "Host: unknown.com" http://192.168.56.110
 curl http://192.168.56.110
 ```
 
 Expected results:
 
-- the first command returns a page containing `app1`;
-- the second command returns a page containing `app2`;
-- the third command returns a page containing `app3`.
+- `app1.com` returns a page containing `app1`;
+- `app2.com` returns a page containing `app2`;
+- an unknown host returns a page containing `app3`;
+- direct IP access returns a page containing `app3`.
 
-You can also test app2 replicas inside the VM:
+To test from a browser on the host, add these entries to the host `/etc/hosts` file:
 
-```sh
-kubectl get pods -l app=app2
+```text
+192.168.56.110 app1.com
+192.168.56.110 app2.com
 ```
 
-It should show 3 running pods.
+Then open:
+
+- `http://app1.com`
+- `http://app2.com`
+- `http://192.168.56.110`
 
 ## Useful Commands
 
-Reapply the manifests after editing them:
+Check VM state:
 
 ```sh
-kubectl apply -f /vagrant/confs/apps.yaml
+vagrant status
 ```
 
-Describe the Ingress:
+Check K3s:
 
 ```sh
-kubectl describe ingress webapps
+vagrant ssh maparigiS -c 'sudo systemctl status k3s --no-pager'
 ```
 
 Check Traefik:
 
 ```sh
-kubectl -n kube-system get pods -l app.kubernetes.io/name=traefik
+vagrant ssh maparigiS -c 'kubectl -n kube-system get pods,svc,deployments -o wide'
 ```
 
-See all resources:
+Describe the Ingress:
 
 ```sh
-kubectl get all
+vagrant ssh maparigiS -c 'kubectl describe ingress webapps'
+```
+
+Reapply the manifests after editing them:
+
+```sh
+vagrant ssh maparigiS -c 'kubectl apply -f /vagrant/confs/apps.yaml'
 ```
 
 Destroy the VM:
@@ -332,12 +233,28 @@ Destroy the VM:
 vagrant destroy -f
 ```
 
-## Evaluation Checklist
+## Current Verified State
 
-- The VM name is `maparigiS`.
-- The VM IP is `192.168.56.110`.
-- K3s runs in server mode.
-- `app1.com` displays `app1`.
-- `app2.com` displays `app2`.
-- unknown hosts or direct IP access display `app3`.
-- `app2` has 3 replicas.
+After the corrections:
+
+- `maparigiS` is `Ready`;
+- `app1` is `1/1`;
+- `app2` is `3/3`;
+- `app3` is `1/1`;
+- `app1.com` returns app1;
+- `app2.com` returns app2;
+- unknown hosts and direct IP access return app3.
+
+That satisfies the purpose of Part 2: run three simple applications in K3s and route traffic to them with Ingress according to the request host.
+
+## Submission Context
+
+The PDF expects the mandatory work to be organized at the repository root as:
+
+- `p1`
+- `p2`
+- `p3`
+
+This README documents only `p2`.
+
+Part 1 proves a two-node K3s cluster with Vagrant. Part 2 uses one K3s server and focuses on application deployment, replicas, Services, and Ingress routing. Part 3 moves to K3d and Argo CD.
