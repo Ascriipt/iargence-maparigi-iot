@@ -1,0 +1,26 @@
+global:
+  edition: ce
+  ingress:
+    class: nginx
+    configureCertmanager: false
+  hosts:
+    domain: 127.0.0.1.nip.io
+    https: false
+
+certmanager:
+  install: false
+
+gitlab-runner:
+  install: false
+
+prometheus:
+  install: false
+
+registry:
+  enabled: false
+
+nginx-ingress:
+  enabled: true
+  controller:
+    service:
+      type: LoadBalancer
