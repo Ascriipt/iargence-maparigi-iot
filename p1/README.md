@@ -39,6 +39,72 @@ This project uses `ubuntu/jammy64`, VirtualBox, Vagrant shell provisioning, and 
 - `scripts/worker.sh`: installs and configures the K3s agent on `hrobinSW`.
 - `shared/`: synced folder mounted at `/vagrant_shared` inside both VMs. It is used to pass the server join token to the worker.
 
+## Configuration Files Explained
+
+### `vagrantfile`
+
+This is the only hand-written configuration file for Part 1. It tells Vagrant how to create the two VirtualBox machines required by the subject.
+
+- `Vagrant.configure("2")` selects Vagrant's version 2 configuration format.
+- `config.vm.synced_folder "./shared", "/vagrant_shared"` mounts the local `shared` directory inside both VMs. The server writes the K3s join token there, and the worker reads it from the same location.
+- `config.vm.define "hrobinS"` declares the server VM.
+- `server.vm.box = "ubuntu/jammy64"` uses Ubuntu 22.04 as the base image for the server.
+- `server.vm.hostname = "hrobinS"` sets the VM hostname expected by the subject naming rule.
+- `server.vm.network "private_network", ip: "192.168.56.110"` gives the server its static private IP.
+- `vb.memory = 2048` gives the server 2 GB of RAM. This is higher than the minimum because K3s was unstable at 1 GB in this environment.
+- `vb.cpus = 1` keeps the server at one CPU.
+- `server.vm.provision "shell", path: "scripts/server.sh"` runs the server install script during `vagrant up` or `vagrant provision`.
+- `config.vm.define "hrobinSW"` declares the worker VM.
+- `worker.vm.box = "ubuntu/jammy64"` uses the same Ubuntu base image for the worker.
+- `worker.vm.hostname = "hrobinSW"` sets the worker hostname.
+- `worker.vm.network "private_network", ip: "192.168.56.111"` gives the worker its static private IP.
+- `vb.memory = 1024` gives the worker 1 GB of RAM.
+- `vb.cpus = 1` keeps the worker at one CPU.
+- `worker.vm.provision "shell", path: "scripts/worker.sh"` runs the worker install script, which joins the server node.
+
+### `shared/token`
+
+This file is not meant to be edited by hand. It is runtime state produced by `scripts/server.sh`.
+
+The K3s server creates a node token under `/var/lib/rancher/k3s/server/node-token`. The provisioning script copies that token into the synced `shared` directory so the worker VM can read it from `/vagrant_shared/token` and join the cluster.
+
+If the cluster is destroyed and recreated, this token can change. It belongs to the current local Vagrant environment, not to the project configuration.
+
+## Scripts Explained
+
+### `scripts/server.sh`
+
+This script provisions the `hrobinS` VM as the K3s server node.
+
+- `set -e` stops the script immediately if a command fails.
+- `SERVER_IP="192.168.56.110"` stores the static private IP assigned in `vagrantfile`.
+- `FLANNEL_IFACE=$(ip -o addr show to "${SERVER_IP}/32" | awk '{print $2; exit}')` finds the real Linux network interface that owns the server IP.
+- The empty-interface check exits with a clear error if the private network is not configured correctly.
+- `apt-get update -y` refreshes the package index before installing K3s dependencies through the K3s installer.
+- `curl -sfL https://get.k3s.io | ... sh -` runs the official K3s installer in server mode.
+- `--bind-address`, `--advertise-address`, and `--node-ip` force K3s to use `192.168.56.110` instead of another VM interface.
+- `--write-kubeconfig-mode=644` makes the generated kubeconfig readable by the `vagrant` user.
+- `--flannel-iface=${FLANNEL_IFACE}` tells Flannel to use the private network interface for pod networking.
+- The first `while` loop waits until K3s has created both the node token and kubeconfig.
+- The `until kubectl get nodes` loop waits until the Kubernetes API is usable.
+- `cp /var/lib/rancher/k3s/server/node-token /vagrant_shared/token` shares the join token with the worker VM.
+- The final `mkdir`, `cp`, and `chown` commands install kubeconfig for the `vagrant` user so `kubectl` works after SSH login.
+
+### `scripts/worker.sh`
+
+This script provisions the `hrobinSW` VM as a K3s agent node.
+
+- `set -e` stops the script on the first failure.
+- `WORKER_IP="192.168.56.111"` stores the worker's static private IP.
+- `FLANNEL_IFACE=...` detects the worker's private network interface from that IP.
+- The empty-interface check prevents installing K3s with a bad Flannel interface.
+- `apt-get update -y` refreshes package metadata.
+- The `while [ ! -f /vagrant_shared/token ]` loop waits until the server has written its join token.
+- `TOKEN=$(cat /vagrant_shared/token)` reads the token produced by the server.
+- The K3s installer runs in agent mode because `K3S_URL=https://192.168.56.110:6443` points it at the server API.
+- `K3S_TOKEN=$TOKEN` authenticates the worker to the server.
+- `INSTALL_K3S_EXEC="--node-ip=${WORKER_IP} --flannel-iface=${FLANNEL_IFACE}"` pins the worker to its private IP and matching network interface.
+
 ## How the Cluster Is Built
 
 Vagrant starts `hrobinS` first. That VM gets the static private IP `192.168.56.110`.

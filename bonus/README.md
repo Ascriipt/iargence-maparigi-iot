@@ -34,6 +34,120 @@ This implementation uses:
 - `confs/argocd/application.yaml.tpl`: Argo CD Application template.
 - `confs/app/deployment.yaml`: initial app manifests pushed to local GitLab.
 
+## Configuration Files Explained
+
+### `confs/gitlab/values.yaml`
+
+This file customizes the official GitLab Helm chart for a small local lab cluster.
+
+- `global.edition: ce` installs GitLab Community Edition.
+- `global.ingress.class: nginx` tells GitLab to use the nginx Ingress controller installed by the GitLab chart.
+- `global.ingress.configureCertmanager: false` disables cert-manager integration, which is unnecessary for this local HTTP setup.
+- `global.hosts.domain: 127.0.0.1.nip.io` makes GitLab create local-friendly hostnames that resolve back to localhost through `nip.io`.
+- `global.hosts.https: false` disables HTTPS for the GitLab web endpoints.
+- `certmanager.install: false` avoids installing cert-manager.
+- `gitlab-runner.install: false` avoids installing GitLab Runner because CI jobs are not required for the subject.
+- `prometheus.install: false` avoids installing Prometheus to keep the bonus cluster lighter.
+- `registry.enabled: false` disables the container registry because the app image is pulled from Docker Hub.
+- `nginx-ingress.enabled: true` enables the nginx Ingress controller bundled with the GitLab chart.
+- `nginx-ingress.controller.service.type: LoadBalancer` exposes nginx through the K3d load balancer, which is mapped to host port `8080` by the setup script.
+
+### `confs/argocd/application.yaml.tpl`
+
+This is a template for the Argo CD `Application` resource. In the bonus, `scripts/setup.sh` fills it with values pointing to the local GitLab repository instead of GitHub.
+
+- `metadata.name: __APP_NAME__` is replaced with the Argo CD application name.
+- `metadata.namespace: __ARGOCD_NAMESPACE__` is replaced with the Argo CD namespace, normally `argocd`.
+- `spec.project: default` uses Argo CD's default project.
+- `spec.source.repoURL: __REPO_URL__` is replaced with the internal GitLab repository URL.
+- `spec.source.targetRevision: __TARGET_REVISION__` is replaced with the branch or revision to track.
+- `spec.source.path: __APP_PATH__` is replaced with the manifest path inside the GitLab repository.
+- `spec.destination.server: https://kubernetes.default.svc` deploys into the same cluster where Argo CD is running.
+- `spec.destination.namespace: __DEV_NAMESPACE__` is replaced with the application namespace, normally `dev`.
+- `syncPolicy.automated.prune: true` lets Argo CD remove resources that disappear from Git.
+- `syncPolicy.automated.selfHeal: true` lets Argo CD repair cluster drift from the Git version.
+- `syncOptions: CreateNamespace=true` lets Argo CD create the destination namespace when needed.
+
+### `confs/app/deployment.yaml`
+
+This is the initial Kubernetes application configuration that `scripts/setup.sh` pushes into local GitLab.
+
+- The `Deployment` named `playground` runs one replica of `wil42/playground:v1`.
+- The container exposes port `8888`.
+- The Deployment and pod template use the label `app: playground`.
+- The `Service` named `playground` selects the `app: playground` pod and exposes port `8888`.
+- The `Ingress` named `playground` uses `ingressClassName: nginx`, so it is handled by the nginx Ingress controller installed with GitLab.
+- The Ingress host is `playground.127.0.0.1.nip.io`, which resolves to localhost and is exposed through host port `8080`.
+- The Ingress routes `/` to the `playground` Service on port `8888`.
+
+The version update demonstration changes this file in the GitLab repository from `wil42/playground:v1` to `wil42/playground:v2`. Argo CD then syncs the new image into the `dev` namespace.
+
+## Scripts Explained
+
+### `scripts/install_tools.sh`
+
+This script installs the local tools needed for the bonus on an Ubuntu machine.
+
+- `set -euo pipefail` makes the script fail on command errors, unset variables, and failed pipeline commands.
+- The `SUDO` block lets the script work as root or as a normal user with `sudo`.
+- `apt-get update -y` refreshes package metadata.
+- `apt-get install -y ca-certificates curl git gnupg jq lsb-release docker.io` installs Docker plus the CLI tools used by the setup.
+- `systemctl enable docker` and `systemctl start docker` enable and start Docker.
+- The Docker group check adds the current user to the `docker` group if needed.
+- The `kubectl`, `k3d`, and `helm` blocks install each tool only if it is missing.
+- The final version commands print the installed Docker, K3d, kubectl, and Helm versions.
+
+### `scripts/setup.sh`
+
+This is the main bonus setup script. It creates the K3d cluster, installs GitLab, creates the local GitOps repository, installs Argo CD, and syncs the app from GitLab.
+
+- The variables at the top define overridable defaults for the cluster, namespaces, GitLab host, HTTP port, root password, token, project name, app name, manifest path, and Git branch.
+- The dependency loop checks for `docker`, `k3d`, `kubectl`, `helm`, `git`, `curl`, and `sed`.
+- `docker info` verifies Docker is running and accessible.
+- The `k3d cluster create` block creates `iot-bonus` only if it does not already exist.
+- `--api-port 6552` exposes the Kubernetes API on a predictable host port.
+- `-p "${GITLAB_HTTP_PORT}:80@loadbalancer"` maps the cluster HTTP load balancer to host port `8080` by default.
+- `--agents 1` creates one K3d agent node.
+- `--k3s-arg "--disable=traefik@server:0"` disables K3s Traefik because GitLab's chart installs nginx Ingress.
+- The namespace commands create `gitlab`, `argocd`, and `dev` idempotently.
+- The `gitlab-root-password` secret stores the GitLab root password for the Helm chart.
+- `helm repo add` and `helm repo update` configure the official GitLab chart repository.
+- `helm upgrade --install gitlab gitlab/gitlab ...` installs or updates GitLab using `confs/gitlab/values.yaml` plus runtime values.
+- `wait_deployments` waits for GitLab deployments matching a label selector, and exits clearly if none are found.
+- The script waits for GitLab `webservice`, `sidekiq`, and `toolbox` deployments.
+- The `gitlab-rails runner` command inside the toolbox pod creates a root personal access token and a public `root/iot-gitops` project if needed.
+- `mktemp -d` creates a temporary local Git repository.
+- The script copies `confs/app/*.yaml` into the temporary repository under `APP_PATH`.
+- The Git commands initialize the repository, create the `main` branch, commit the v1 app manifests, add the local GitLab remote, and force-push the initial state.
+- Argo CD is installed into the `argocd` namespace from the official stable manifest.
+- The Argo CD rollout checks wait for the server, repo server, and ApplicationSet controller.
+- `internal_repo_url` points Argo CD at GitLab's in-cluster service address, so syncing does not depend on external DNS.
+- The `sed` command renders `confs/argocd/application.yaml.tpl` with the local GitLab repository and namespace values.
+- `kubectl apply -f "$tmp_application"` creates the Argo CD Application.
+- The final rollout check waits until the synced app Deployment is available in `dev`.
+- The ending `echo` lines print the GitLab URL, app URL, Argo CD port-forward command, and password command.
+
+### `scripts/update_app_to_v2.sh`
+
+This script performs the bonus version update demo by committing a change to the local GitLab repository.
+
+- The variables at the top define the GitLab domain, host, port, token, project, and app manifest path.
+- `mktemp -d` creates a temporary clone directory, and `trap` removes it on exit.
+- `git clone` clones the local GitLab project using the root token.
+- `sed -i 's|wil42/playground:v1|wil42/playground:v2|g' ...` changes the app image tag in the GitLab copy of `deployment.yaml`.
+- The Git config commands set a local commit identity for the temporary clone.
+- The script stages `deployment.yaml`, commits the version change, and allows the commit command to be a no-op if the file was already at v2.
+- `git push origin main` pushes the change to local GitLab.
+- The final message reminds that Argo CD should sync the GitLab change into the `dev` namespace.
+
+### `scripts/cleanup.sh`
+
+This script deletes the bonus K3d cluster.
+
+- `CLUSTER_NAME="${CLUSTER_NAME:-iot-bonus}"` uses `iot-bonus` by default but allows overriding it.
+- The cluster existence check avoids failing when there is nothing to delete.
+- `k3d cluster delete "$CLUSTER_NAME"` removes the cluster when it exists.
+
 ## How It Works
 
 The setup creates a K3d cluster named `iot-bonus`.

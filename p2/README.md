@@ -35,6 +35,72 @@ This project uses `ubuntu/jammy64`, VirtualBox, Vagrant shell provisioning, K3s,
 - `scripts/server.sh`: installs K3s, waits for the node, applies the Kubernetes manifests, and waits for rollouts.
 - `confs/apps.yaml`: defines the ConfigMaps, Deployments, Services, and Ingress for the three applications.
 
+## Configuration Files Explained
+
+### `Vagrantfile`
+
+This file describes the single VirtualBox VM used for Part 2.
+
+- `Vagrant.configure("2")` selects Vagrant's version 2 configuration format.
+- `config.vm.box = "ubuntu/jammy64"` uses Ubuntu 22.04 as the base image.
+- `config.vm.define "maparigiS"` declares the VM name used by Vagrant commands.
+- `server.vm.hostname = "maparigiS"` sets the hostname inside the VM.
+- `server.vm.network "private_network", ip: "192.168.56.110"` gives the VM the static private IP required by the subject.
+- `vb.memory = 2048` gives the VM enough RAM to run K3s, Traefik, and the application pods.
+- `vb.cpus = 1` keeps the VM at one CPU.
+- `server.vm.provision "shell", path: "scripts/server.sh"` runs the provisioning script that installs K3s and applies the manifests.
+
+### `confs/apps.yaml`
+
+This is the Kubernetes configuration for the three web applications and their routing.
+
+The first three resources are ConfigMaps:
+
+- `app1-content` contains an `index.html` page that displays `app1`.
+- `app2-content` contains an `index.html` page that displays `app2`.
+- `app3-content` contains an `index.html` page that displays `app3`.
+
+Each ConfigMap is mounted into an nginx container at `/usr/share/nginx/html`, replacing nginx's default page with the required app page.
+
+The next resources are one Deployment and one Service for each app:
+
+- `app1` runs `nginx:1.25-alpine` with `replicas: 1`.
+- `app2` runs `nginx:1.25-alpine` with `replicas: 3`, which is the required replicated application.
+- `app3` runs `nginx:1.25-alpine` with `replicas: 1`.
+- Each Deployment uses the label `app: appX`.
+- Each Service selects the matching `app: appX` pods and exposes port `80`.
+
+The final resource is the `webapps` Ingress:
+
+- `defaultBackend` points to the `app3` Service, so app3 is the fallback backend.
+- The `app1.com` host rule sends traffic to the `app1` Service.
+- The `app2.com` host rule sends traffic to the `app2` Service.
+- The `app3.com` host rule sends traffic to the `app3` Service.
+- The last hostless rule also sends traffic to `app3`, which makes unknown hosts and direct IP access work reliably with Traefik.
+
+## Scripts Explained
+
+### `scripts/server.sh`
+
+This script provisions the `maparigiS` VM, installs K3s, and deploys the three web apps.
+
+- `set -euo pipefail` makes the script fail on command errors, unset variables, and failed pipeline commands.
+- `SERVER_IP="192.168.56.110"` stores the static private IP from `Vagrantfile`.
+- `FLANNEL_IFACE=$(ip -o addr show to "${SERVER_IP}/32" | awk '{print $2; exit}')` detects the private network interface dynamically.
+- The empty-interface check exits early if the expected private IP is missing.
+- `apt-get update -y` refreshes package metadata.
+- `apt-get install -y curl` ensures the K3s install command can download the installer.
+- `curl -sfL https://get.k3s.io | ... sh -` installs K3s in server mode.
+- `--bind-address`, `--advertise-address`, and `--node-ip` make K3s use `192.168.56.110`.
+- `--write-kubeconfig-mode=644` makes kubeconfig readable for non-root users.
+- `--flannel-iface=${FLANNEL_IFACE}` makes Flannel use the correct private interface.
+- The kubeconfig wait loop pauses until `/etc/rancher/k3s/k3s.yaml` exists.
+- The `mkdir`, `cp`, and `chown` commands install kubeconfig for the `vagrant` user.
+- `until kubectl get nodes` waits until the Kubernetes API responds.
+- `kubectl wait --for=condition=Ready nodes --all --timeout=180s` waits for the K3s node to become Ready.
+- `kubectl apply -f /vagrant/confs/apps.yaml` applies the ConfigMaps, Deployments, Services, and Ingress.
+- The final `kubectl rollout status` commands wait for Traefik and all three app Deployments to finish rolling out before provisioning ends.
+
 ## How the Cluster Is Built
 
 Vagrant starts `maparigiS` with the static private IP `192.168.56.110`.
