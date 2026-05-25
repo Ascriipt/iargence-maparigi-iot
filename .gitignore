@@ -1,0 +1,13 @@
+# Vagrant files and directories
+shared/
+.vagrant/
+*.box
+*.log
+
+# Machine files/folders
+.machine/
+machines/
+VM/
+
+# Vagrant lock file
+Gemfile.lock
