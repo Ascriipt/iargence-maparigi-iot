@@ -25,6 +25,23 @@ done
 
 docker info >/dev/null
 
+wait_for_deployment() {
+  namespace="$1"
+  deployment="$2"
+  timeout="$3"
+
+  end=$((SECONDS + timeout))
+  until kubectl -n "$namespace" get deployment "$deployment" >/dev/null 2>&1; do
+    if [ "$SECONDS" -ge "$end" ]; then
+      echo "Timed out waiting for deployment/${deployment} in namespace ${namespace}" >&2
+      kubectl -n "$ARGOCD_NAMESPACE" get application "$APP_NAME" -o wide >&2 || true
+      kubectl -n "$ARGOCD_NAMESPACE" describe application "$APP_NAME" >&2 || true
+      exit 1
+    fi
+    sleep 2
+  done
+}
+
 if ! k3d cluster list "$CLUSTER_NAME" >/dev/null 2>&1; then
   k3d cluster create "$CLUSTER_NAME" \
     --api-port 6550 \
@@ -37,7 +54,7 @@ kubectl config use-context "k3d-${CLUSTER_NAME}"
 kubectl create namespace "$ARGOCD_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 kubectl create namespace "$DEV_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
-kubectl apply -n "$ARGOCD_NAMESPACE" -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl apply --server-side --force-conflicts -n "$ARGOCD_NAMESPACE" -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 kubectl -n "$ARGOCD_NAMESPACE" rollout status deployment/argocd-server --timeout=300s
 kubectl -n "$ARGOCD_NAMESPACE" rollout status deployment/argocd-repo-server --timeout=300s
 kubectl -n "$ARGOCD_NAMESPACE" rollout status deployment/argocd-applicationset-controller --timeout=300s
@@ -59,6 +76,7 @@ sed \
   confs/argocd/application.yaml.tpl > "$tmp_application"
 
 kubectl apply -f "$tmp_application"
+wait_for_deployment "$DEV_NAMESPACE" "$APP_NAME" 300
 kubectl -n "$DEV_NAMESPACE" rollout status deployment/"$APP_NAME" --timeout=300s
 
 echo

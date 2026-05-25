@@ -36,7 +36,7 @@ Use this path during defense to answer the Part 3 correction questions.
 | Correction check | Answer in this repo |
 | --- | --- |
 | Configuration files are present in `p3` | `scripts/`, `confs/argocd/application.yaml.tpl`, and `confs/app/deployment.yaml`. |
-| Infrastructure can be started | Run `./scripts/install_tools.sh`, then `GIT_REPO_URL=https://github.com/<login>/<repo>.git ./scripts/setup.sh`. |
+| Infrastructure can be started | Run `./scripts/install_tools.sh`, then `GIT_REPO_URL=https://github.com/Ascriipt/hrobin-maparigi-iot.git ./scripts/setup.sh`. |
 | K3d has at least `argocd` and `dev` namespaces | `kubectl get ns`. |
 | At least one pod exists in `dev` | `kubectl get pods -n dev`. |
 | Required services are running | Check `kubectl get pods -n argocd` and `kubectl get pods -n dev`. |
