@@ -262,8 +262,8 @@ vagrant ssh hrobinSW -c 'sudo systemctl status k3s-agent --no-pager'
 Check the VM interfaces:
 
 ```sh
-vagrant ssh hrobinS -c 'ip a'
-vagrant ssh hrobinSW -c 'ip a'
+vagrant ssh hrobinS -c "ip -br addr"
+vagrant ssh hrobinSW -c "ip -br addr"
 ```
 
 Check all Kubernetes pods:
