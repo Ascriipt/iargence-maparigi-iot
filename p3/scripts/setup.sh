@@ -11,7 +11,7 @@ TARGET_REVISION="${TARGET_REVISION:-HEAD}"
 if [ -z "${GIT_REPO_URL:-}" ]; then
   echo "GIT_REPO_URL is required."
   echo "Example:"
-  echo "  GIT_REPO_URL=https://github.com/<login>/<repo>.git ./scripts/setup.sh"
+  echo "  GIT_REPO_URL=https://github.com/Ascriipt/hrobin-maparigi-iot.git ./scripts/setup.sh"
   exit 1
 fi
 

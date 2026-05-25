@@ -16,13 +16,14 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--bind-address=${SERVER_IP} \
   --advertise-address=${SERVER_IP} \
   --node-ip=${SERVER_IP} \
   --write-kubeconfig-mode=644 \
+  --disable-cloud-controller \
   --flannel-iface=${FLANNEL_IFACE}" sh -
 
 while [ ! -f /var/lib/rancher/k3s/server/node-token ] || [ ! -f /etc/rancher/k3s/k3s.yaml ]; do
   sleep 2
 done
 
-until kubectl get nodes >/dev/null 2>&1; do
+until kubectl get --raw=/readyz >/dev/null 2>&1; do
   sleep 2
 done
 
