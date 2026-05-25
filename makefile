@@ -34,7 +34,7 @@ p1: reset-p1
 			0) spinner='|' ;; \
 			1) spinner='/' ;; \
 			2) spinner='-' ;; \
-				3) spinner='\' ;; \
+			3) spinner='\'  ;; \
 		esac; \
 		printf "\r$(YELLOW)[%s] vagrant up is running... log: %s$(NC)" "$$spinner" "$$log_file"; \
 		sleep 1; \
@@ -97,7 +97,7 @@ p2: reset-p2
 			0) spinner='|' ;; \
 			1) spinner='/' ;; \
 			2) spinner='-' ;; \
-				3) spinner='\' ;; \
+			3) spinner='\'  ;; \
 		esac; \
 		printf "\r$(YELLOW)[%s] vagrant up is running... log: %s$(NC)" "$$spinner" "$$log_file"; \
 		sleep 1; \
@@ -147,7 +147,7 @@ p3:
 			0) spinner='|' ;; \
 			1) spinner='/' ;; \
 			2) spinner='-' ;; \
-				3) spinner='\' ;; \
+			3) spinner='\'  ;; \
 		esac; \
 		printf "\r$(YELLOW)[%s] p3 setup is running... log: %s$(NC)" "$$spinner" "$$log_file"; \
 		sleep 1; \
@@ -180,7 +180,7 @@ p3-tests:
 	run_cmd "kubectl get ns && kubectl get pods,applications -n argocd -o wide"; \
 	run_cmd "kubectl get pods,deployments,services,ingress -n dev -o wide"; \
 	run_cmd "kubectl -n dev rollout status deployment/playground --timeout=30s"; \
-	run_cmd "grep -E 'wil42/playground:v[12]' $(P3_DIR)/confs/app/deployment.yaml && curl -s http://localhost:8888/"
+	run_cmd "kubectl -n dev get deployment playground -o jsonpath='{.spec.template.spec.containers[0].image}'; printf '\\n'; curl -s http://localhost:8888/"
 
 clean-p1: reset-p1
 	@printf "$(RED)$(BLINK)Cleaning up p1 Vagrant logs and config files...$(NC)\n"
