@@ -24,6 +24,57 @@ This implementation uses:
 - Wil's `wil42/playground` app, starting at `v1`;
 - Argo CD syncing the app from the local GitLab repository.
 
+## Evaluation Checklist
+
+Evaluate this part only after p1, p2, and p3 pass perfectly, as required by the correction PDF.
+
+| Correction check | Answer in this repo |
+| --- | --- |
+| Bonus configuration files are present | `scripts/`, `confs/gitlab/values.yaml`, `confs/argocd/application.yaml.tpl`, and `confs/app/deployment.yaml`. |
+| GitLab works locally | `./scripts/setup.sh` installs GitLab with the official Helm chart in the `gitlab` namespace. |
+| A GitLab repository can be created and used | Setup creates `root/iot-gitops` and pushes the v1 app manifests to it. |
+| Part 3 flow still works | Argo CD still runs in `argocd`, the app still runs in `dev`, and the app still updates from v1 to v2. |
+| Argo CD uses local GitLab, not GitHub | The Application repo URL points to `gitlab-webservice-default.gitlab.svc.cluster.local`. |
+| Version change succeeds | `./scripts/update_app_to_v2.sh` commits and pushes the v2 manifest to local GitLab. |
+
+Exact commands:
+
+```sh
+./scripts/install_tools.sh
+./scripts/setup.sh
+kubectl get ns
+kubectl get pods -n gitlab
+kubectl get pods -n argocd
+kubectl get applications -n argocd
+kubectl get pods -n dev
+kubectl get ingress -n dev
+curl -H 'Host: playground.127.0.0.1.nip.io' http://localhost:8080/
+```
+
+GitLab proof:
+
+```text
+http://gitlab.127.0.0.1.nip.io:8080
+username: root
+password: RootPassword42!
+repository: root/iot-gitops
+```
+
+Version change proof:
+
+```sh
+./scripts/update_app_to_v2.sh
+kubectl -n dev rollout status deployment/playground
+curl -H 'Host: playground.127.0.0.1.nip.io' http://localhost:8080/
+```
+
+Expected app outputs:
+
+```json
+{"status":"ok", "message": "v1"}
+{"status":"ok", "message": "v2"}
+```
+
 ## Files
 
 - `scripts/install_tools.sh`: installs Docker, K3d, kubectl, Helm, Git, curl, and jq.

@@ -29,6 +29,66 @@ wil42/playground:v2
 
 The application listens on port `8888`.
 
+## Evaluation Checklist
+
+Use this path during defense to answer the Part 3 correction questions.
+
+| Correction check | Answer in this repo |
+| --- | --- |
+| Configuration files are present in `p3` | `scripts/`, `confs/argocd/application.yaml.tpl`, and `confs/app/deployment.yaml`. |
+| Infrastructure can be started | Run `./scripts/install_tools.sh`, then `GIT_REPO_URL=https://github.com/<login>/<repo>.git ./scripts/setup.sh`. |
+| K3d has at least `argocd` and `dev` namespaces | `kubectl get ns`. |
+| At least one pod exists in `dev` | `kubectl get pods -n dev`. |
+| Required services are running | Check `kubectl get pods -n argocd` and `kubectl get pods -n dev`. |
+| Argo CD is installed and configured | `kubectl get applications -n argocd` shows the `playground` Application. |
+| Argo CD UI is accessible | Port-forward `svc/argocd-server` and log in as `admin`. |
+| GitHub repository contains a team login in its name | Use a public URL like `https://github.com/<login>/<login>-iot.git` for `GIT_REPO_URL`. |
+| Docker image is used from DockerHub | `p3/confs/app/deployment.yaml` uses `wil42/playground:v1`. The update demo uses `wil42/playground:v2`. |
+| v1 application is accessible | `curl http://localhost:8888/` returns the v1 JSON message. |
+| v2 update works through Git and Argo CD | Change the image to `v2`, commit, push, sync if needed, then curl again. |
+
+Exact commands:
+
+```sh
+kubectl get ns
+kubectl get pods -n argocd
+kubectl get applications -n argocd
+kubectl get pods -n dev
+kubectl get ingress -n dev
+curl http://localhost:8888/
+```
+
+Argo CD UI:
+
+```sh
+kubectl -n argocd port-forward svc/argocd-server 8080:443
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
+```
+
+Open `https://localhost:8080`, use username `admin`, and use the password from the command above.
+
+Version change proof from the repository root:
+
+```sh
+sed -i 's|wil42/playground:v1|wil42/playground:v2|g' p3/confs/app/deployment.yaml
+git add p3/confs/app/deployment.yaml
+git commit -m "Update playground to v2"
+git push
+kubectl -n dev rollout status deployment/playground
+curl http://localhost:8888/
+```
+
+Expected outputs:
+
+```json
+{"status":"ok", "message": "v1"}
+{"status":"ok", "message": "v2"}
+```
+
+If Argo CD does not sync automatically during the defense, use the Argo CD UI to manually sync the `playground` Application, then rerun the rollout and curl checks.
+
+Namespace explanation for the evaluator: a namespace is a logical Kubernetes grouping such as `argocd` or `dev`; a pod is the actual running workload created by the Deployment.
+
 ## Files
 
 - `scripts/install_tools.sh`: installs Docker, K3d, and kubectl on an Ubuntu VM.

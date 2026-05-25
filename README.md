@@ -11,6 +11,29 @@ The project is a progressive introduction to Kubernetes:
 
 Each folder has its own README with detailed run steps. This root README is a correction guide: it explains what the subject asks, what the code does, why each file exists, what the tricky parts are, and which commands to use during evaluation.
 
+## Correction Scale Fast Map
+
+Use this section as the short defense path for the correction PDF. Each part also has its own detailed checklist in its folder README.
+
+| Scale question | Where to show it | Command or answer |
+| --- | --- | --- |
+| Basic operation of K3s | Key Concepts | K3s is lightweight Kubernetes. A server node runs the control plane; an agent joins it as a worker. |
+| Basic operation of Vagrant | Key Concepts | Vagrant describes VMs as code and provisions them with shell scripts through VirtualBox. |
+| Basic operation of K3d | Key Concepts | K3d runs K3s clusters as Docker containers, which is why Part 3 needs Docker. |
+| Continuous integration and Argo CD | Key Concepts | CI builds/tests changes; Argo CD is GitOps CD that syncs Kubernetes state from Git. |
+| Required folders | Repository Layout | `p1`, `p2`, and `p3` are present. `bonus` is present for the optional GitLab part. |
+| Part 1 Vagrantfile | `p1/vagrantfile` | Two VMs: `hrobinS` and `hrobinSW`, IPs `192.168.56.110` and `192.168.56.111`. |
+| Part 1 usage | `p1/README.md` | `vagrant up`, `vagrant ssh hrobinS`, `vagrant ssh hrobinSW`, `kubectl get nodes -o wide`. |
+| Part 2 Vagrantfile | `p2/Vagrantfile` | One VM: `maparigiS`, IP `192.168.56.110`. |
+| Part 2 apps | `p2/confs/apps.yaml` | `app1` has 1 replica, `app2` has 3 replicas, `app3` has 1 replica. |
+| Part 2 Ingress | `p2/README.md` | Use `curl -H "Host: app1.com" http://192.168.56.110` and similar commands. |
+| Part 3 namespaces | `p3/README.md` | `kubectl get ns` must show `argocd` and `dev`. |
+| Part 3 Argo CD | `p3/confs/argocd/application.yaml.tpl` | Argo CD watches the Git repo path `p3/confs/app` and syncs the app into `dev`. |
+| Part 3 Docker image | `p3/confs/app/deployment.yaml` | Uses `wil42/playground:v1`, then the demo changes it to `wil42/playground:v2`. |
+| Bonus GitLab | `bonus/README.md` | Local GitLab runs in the `gitlab` namespace and replaces GitHub as Argo CD's Git source. |
+
+The correction PDF text says to check for CentOS in p1 and p2. This repository currently uses the stable `ubuntu/jammy64` Vagrant box in both Vagrantfiles. If the evaluator applies that CentOS line strictly, the Vagrant boxes must be changed in code; the rest of the documented checks remain the same.
+
 ## Repository Layout
 
 ```text
@@ -136,7 +159,7 @@ That makes the setup work with the real interface name, for example `enp0s8`.
 Part 1 asks for:
 
 - two Vagrant machines;
-- latest stable Linux distribution of your choice;
+- a stable Linux Vagrant box. The correction PDF text says CentOS; this repo currently uses `ubuntu/jammy64`;
 - low resources, usually 1 CPU and 512 MB or 1024 MB RAM;
 - hostnames based on a team login:
   - server ends with `S`;
@@ -213,6 +236,7 @@ vagrant destroy -f
 Part 2 asks for:
 
 - one Vagrant VM;
+- a stable Linux Vagrant box. The correction PDF text says CentOS; this repo currently uses `ubuntu/jammy64`;
 - K3s installed in server mode;
 - VM name based on login plus `S`;
 - VM IP: `192.168.56.110`;

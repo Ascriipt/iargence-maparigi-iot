@@ -19,7 +19,7 @@ The names follow the subject rule: use a team login, then add `S` for the server
 The PDF asks Part 1 to provide:
 
 - two machines managed by Vagrant;
-- a recent stable Linux distribution;
+- a stable Linux Vagrant box. The correction PDF text says CentOS; this repo currently uses `ubuntu/jammy64`;
 - minimal resources, usually 1 CPU and 512 MB or 1024 MB RAM;
 - hostnames based on a team login, ending in `S` and `SW`;
 - static private IPs:
@@ -31,6 +31,41 @@ The PDF asks Part 1 to provide:
 - `kubectl` available for checking the cluster.
 
 This project uses `ubuntu/jammy64`, VirtualBox, Vagrant shell provisioning, and K3s.
+
+The correction PDF text says to check for CentOS. This implementation uses the stable `ubuntu/jammy64` box. If the local evaluator requires the literal CentOS wording, change the `server.vm.box` and `worker.vm.box` values in `vagrantfile`; the VM naming, IP, K3s, and cluster checks below are unchanged.
+
+## Evaluation Checklist
+
+Use this path during defense to answer the Part 1 correction questions.
+
+| Correction check | Answer in this repo |
+| --- | --- |
+| Vagrantfile is present in `p1` | `p1/vagrantfile` defines the infrastructure. |
+| Two virtual machines are configured | `hrobinS` and `hrobinSW`. |
+| VM names include a login and end correctly | `hrobinS` ends with `S`; `hrobinSW` ends with `SW`. |
+| Static private IPs are configured | Server: `192.168.56.110`; worker: `192.168.56.111`. |
+| Private interface exists | Run `ip -br addr` or `ip addr show` inside each VM and find the interface carrying the required IP. On this Ubuntu box it is usually `enp0s8`, not `eth1`. |
+| Hostnames are correct | `vagrant ssh hrobinS -c hostname` and `vagrant ssh hrobinSW -c hostname`. |
+| Both machines use K3s | Server has `k3s`; worker has `k3s-agent`. |
+| Both machines are in the same cluster | Run `vagrant ssh hrobinS -c 'kubectl get nodes -o wide'`. |
+
+Exact commands:
+
+```sh
+vagrant status
+vagrant ssh hrobinS -c 'hostname; ip -br addr; sudo systemctl is-active k3s'
+vagrant ssh hrobinSW -c 'hostname; ip -br addr; sudo systemctl is-active k3s-agent'
+vagrant ssh hrobinS -c 'kubectl get nodes -o wide'
+```
+
+Expected node result:
+
+```text
+hrobins    Ready    control-plane   192.168.56.110
+hrobinsw   Ready    <none>          192.168.56.111
+```
+
+The evaluator should understand that `hrobinS` is the K3s server/control-plane node and `hrobinSW` is the K3s agent/worker node. The shared token in `p1/shared/token` is only runtime state used by the worker to join the server.
 
 ## Files
 

@@ -15,7 +15,7 @@ The hostname follows the subject rule: use a team login, then add `S` for the se
 The PDF asks Part 2 to provide:
 
 - one virtual machine managed by Vagrant;
-- a recent stable Linux distribution;
+- a stable Linux Vagrant box. The correction PDF text says CentOS; this repo currently uses `ubuntu/jammy64`;
 - K3s installed in server mode;
 - the VM named with a team login followed by `S`;
 - the VM reachable at `192.168.56.110`;
@@ -28,6 +28,59 @@ The PDF asks Part 2 to provide:
 - the Ingress must be shown during evaluation.
 
 This project uses `ubuntu/jammy64`, VirtualBox, Vagrant shell provisioning, K3s, nginx containers, and the default K3s Traefik Ingress controller.
+
+The correction PDF text says to check for CentOS. This implementation uses the stable `ubuntu/jammy64` box. If the local evaluator requires the literal CentOS wording, change `config.vm.box` in `Vagrantfile`; the K3s, app, replica, and Ingress checks below are unchanged.
+
+## Evaluation Checklist
+
+Use this path during defense to answer the Part 2 correction questions.
+
+| Correction check | Answer in this repo |
+| --- | --- |
+| Vagrantfile is present in `p2` | `p2/Vagrantfile` defines the VM. |
+| Only one virtual machine is configured | `maparigiS`. |
+| VM name includes a login and ends with `S` | `maparigiS` ends with `S`. |
+| Static private IP is configured | `192.168.56.110`. |
+| Private interface exists | Run `ip -br addr` or `ip addr show` inside the VM and find the interface carrying `192.168.56.110`. On this Ubuntu box it is usually `enp0s8`, not `eth1`. |
+| Hostname is correct | `vagrant ssh maparigiS -c hostname`. |
+| Machine uses K3s | `sudo systemctl is-active k3s` should return `active`. |
+| Node is visible | `kubectl get nodes -o wide` shows `maparigis` with internal IP `192.168.56.110`. |
+| Three applications are deployed | `kubectl get deployments -o wide` shows `app1`, `app2`, and `app3`. |
+| Second application has 3 replicas | `app2` shows `3/3`; `confs/apps.yaml` has `replicas: 3`. |
+| Ingress works by `Host` header | `app1.com` returns app1, `app2.com` returns app2, unknown hosts and direct IP access return app3. |
+
+Exact commands:
+
+```sh
+vagrant status
+vagrant ssh maparigiS -c 'hostname; ip -br addr; sudo systemctl is-active k3s'
+vagrant ssh maparigiS -c 'kubectl get nodes -o wide'
+vagrant ssh maparigiS -c 'kubectl get deployments,pods,services,ingress -o wide'
+vagrant ssh maparigiS -c 'kubectl -n kube-system get all'
+vagrant ssh maparigiS -c 'kubectl describe ingress webapps'
+```
+
+The correction PDF line `kubetctl get all -n kube-system` has two traps: `kubetctl` is a typo for `kubectl`, and this repo's three apps live in the default namespace, not `kube-system`. Use `kubectl get all` to see `app1`, `app2`, and `app3`; use `kubectl -n kube-system get all` to explain K3s system components such as Traefik.
+
+Routing proof:
+
+```sh
+curl -H "Host: app1.com" http://192.168.56.110
+curl -H "Host: app2.com" http://192.168.56.110
+curl -H "Host: unknown.com" http://192.168.56.110
+curl http://192.168.56.110
+```
+
+Expected page contents:
+
+```text
+app1
+app2
+app3
+app3
+```
+
+The `Host` header is required because the Ingress rules route several virtual hosts through the same IP address. Direct IP access sends `Host: 192.168.56.110`, which falls through to app3.
 
 ## Files
 
