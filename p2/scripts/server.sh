@@ -30,8 +30,24 @@ until kubectl get nodes >/dev/null 2>&1; do
   sleep 2
 done
 
+wait_for_deployment() {
+  namespace="$1"
+  deployment="$2"
+  timeout="$3"
+
+  end=$((SECONDS + timeout))
+  until kubectl -n "$namespace" get deployment "$deployment" >/dev/null 2>&1; do
+    if [ "$SECONDS" -ge "$end" ]; then
+      echo "Timed out waiting for deployment/${deployment} in namespace ${namespace}" >&2
+      exit 1
+    fi
+    sleep 2
+  done
+}
+
 kubectl wait --for=condition=Ready nodes --all --timeout=180s
 kubectl apply -f /vagrant/confs/apps.yaml
+wait_for_deployment kube-system traefik 180
 kubectl -n kube-system rollout status deployment/traefik --timeout=180s
 kubectl rollout status deployment/app1 --timeout=180s
 kubectl rollout status deployment/app2 --timeout=180s

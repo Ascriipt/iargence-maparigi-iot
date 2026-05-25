@@ -99,6 +99,7 @@ This script provisions the `maparigiS` VM, installs K3s, and deploys the three w
 - `until kubectl get nodes` waits until the Kubernetes API responds.
 - `kubectl wait --for=condition=Ready nodes --all --timeout=180s` waits for the K3s node to become Ready.
 - `kubectl apply -f /vagrant/confs/apps.yaml` applies the ConfigMaps, Deployments, Services, and Ingress.
+- `wait_for_deployment kube-system traefik 180` waits until K3s has created Traefik through its Helm controller.
 - The final `kubectl rollout status` commands wait for Traefik and all three app Deployments to finish rolling out before provisioning ends.
 
 ## How the Cluster Is Built
@@ -115,7 +116,8 @@ The provisioning script:
 6. Copies the kubeconfig to `/home/vagrant/.kube/config`.
 7. Waits until the node is ready.
 8. Applies `/vagrant/confs/apps.yaml`.
-9. Waits for Traefik and the three app deployments to roll out.
+9. Waits for K3s to create Traefik.
+10. Waits for Traefik and the three app deployments to roll out.
 
 The project directory is mounted inside the VM at `/vagrant`, which is why the script can apply:
 
