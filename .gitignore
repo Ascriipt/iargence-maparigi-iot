@@ -1,5 +1,8 @@
 # Vagrant files and directories
-shared/
+shared/*
+!shared/.gitkeep
+**/shared/*
+!**/shared/.gitkeep
 .vagrant/
 *.box
 *.log

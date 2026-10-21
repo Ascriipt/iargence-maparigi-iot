@@ -10,6 +10,11 @@ if [ -z "$FLANNEL_IFACE" ]; then
   exit 1
 fi
 
+if [ -f /etc/systemd/resolved.conf ]; then
+  sed -i "s/^#*DNSSEC=.*/DNSSEC=no/" /etc/systemd/resolved.conf
+  systemctl restart systemd-resolved || true
+fi
+
 apt-get update -y
 
 while [ ! -f /vagrant_shared/token ]; do

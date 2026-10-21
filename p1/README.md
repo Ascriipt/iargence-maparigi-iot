@@ -9,8 +9,8 @@ The subject asks for a small K3s cluster created with Vagrant. The cluster must 
 
 In this implementation, the machines are:
 
-- `hrobinS`: K3s server node, `192.168.56.110`
-- `hrobinSW`: K3s worker node, `192.168.56.111`
+- `iargenceS`: K3s server node, `192.168.56.110`
+- `iargenceSW`: K3s worker node, `192.168.56.111`
 
 The names follow the subject rule: use a team login, then add `S` for the server and `SW` for the server-worker. If the evaluated login needs to be different, update the VM names and hostnames in `vagrantfile`.
 
@@ -41,37 +41,37 @@ Use this path during defense to answer the Part 1 correction questions.
 | Correction check | Answer in this repo |
 | --- | --- |
 | Vagrantfile is present in `p1` | `p1/vagrantfile` defines the infrastructure. |
-| Two virtual machines are configured | `hrobinS` and `hrobinSW`. |
-| VM names include a login and end correctly | `hrobinS` ends with `S`; `hrobinSW` ends with `SW`. |
+| Two virtual machines are configured | `iargenceS` and `iargenceSW`. |
+| VM names include a login and end correctly | `iargenceS` ends with `S`; `iargenceSW` ends with `SW`. |
 | Static private IPs are configured | Server: `192.168.56.110`; worker: `192.168.56.111`. |
 | Private interface exists | Run `ip -br addr` or `ip addr show` inside each VM and find the interface carrying the required IP. On this Ubuntu box it is usually `enp0s8`, not `eth1`. |
-| Hostnames are correct | `vagrant ssh hrobinS -c hostname` and `vagrant ssh hrobinSW -c hostname`. |
+| Hostnames are correct | `vagrant ssh iargenceS -c hostname` and `vagrant ssh iargenceSW -c hostname`. |
 | Both machines use K3s | Server has `k3s`; worker has `k3s-agent`. |
-| Both machines are in the same cluster | Run `vagrant ssh hrobinS -c 'kubectl get nodes -o wide'`. |
+| Both machines are in the same cluster | Run `vagrant ssh iargenceS -c 'kubectl get nodes -o wide'`. |
 
 Exact commands:
 
 ```sh
 vagrant status
-vagrant ssh hrobinS -c 'hostname; ip -br addr; sudo systemctl is-active k3s'
-vagrant ssh hrobinSW -c 'hostname; ip -br addr; sudo systemctl is-active k3s-agent'
-vagrant ssh hrobinS -c 'kubectl get nodes -o wide'
+vagrant ssh iargenceS -c 'hostname; ip -br addr; sudo systemctl is-active k3s'
+vagrant ssh iargenceSW -c 'hostname; ip -br addr; sudo systemctl is-active k3s-agent'
+vagrant ssh iargenceS -c 'kubectl get nodes -o wide'
 ```
 
 Expected node result:
 
 ```text
-hrobins    Ready    control-plane   192.168.56.110
-hrobinsw   Ready    <none>          192.168.56.111
+iargences    Ready    control-plane   192.168.56.110
+iargencesw   Ready    <none>          192.168.56.111
 ```
 
-The evaluator should understand that `hrobinS` is the K3s server/control-plane node and `hrobinSW` is the K3s agent/worker node. The shared token in `p1/shared/token` is only runtime state used by the worker to join the server.
+The evaluator should understand that `iargenceS` is the K3s server/control-plane node and `iargenceSW` is the K3s agent/worker node. The shared token in `p1/shared/token` is only runtime state used by the worker to join the server.
 
 ## Files
 
 - `vagrantfile`: defines both VMs, their hostnames, IPs, resources, synced folder, and provisioning scripts.
-- `scripts/server.sh`: installs and configures K3s on `hrobinS`.
-- `scripts/worker.sh`: installs and configures the K3s agent on `hrobinSW`.
+- `scripts/server.sh`: installs and configures K3s on `iargenceS`.
+- `scripts/worker.sh`: installs and configures the K3s agent on `iargenceSW`.
 - `shared/`: synced folder mounted at `/vagrant_shared` inside both VMs. It is used to pass the server join token to the worker.
 
 ## Configuration Files Explained
@@ -82,16 +82,16 @@ This is the only hand-written configuration file for Part 1. It tells Vagrant ho
 
 - `Vagrant.configure("2")` selects Vagrant's version 2 configuration format.
 - `config.vm.synced_folder "./shared", "/vagrant_shared"` mounts the local `shared` directory inside both VMs. The server writes the K3s join token there, and the worker reads it from the same location.
-- `config.vm.define "hrobinS"` declares the server VM.
+- `config.vm.define "iargenceS"` declares the server VM.
 - `server.vm.box = "ubuntu/jammy64"` uses Ubuntu 22.04 as the base image for the server.
-- `server.vm.hostname = "hrobinS"` sets the VM hostname expected by the subject naming rule.
+- `server.vm.hostname = "iargenceS"` sets the VM hostname expected by the subject naming rule.
 - `server.vm.network "private_network", ip: "192.168.56.110"` gives the server its static private IP.
 - `vb.memory = 2048` gives the server 2 GB of RAM. This is higher than the minimum because K3s was unstable at 1 GB in this environment.
 - `vb.cpus = 1` keeps the server at one CPU.
 - `server.vm.provision "shell", path: "scripts/server.sh"` runs the server install script during `vagrant up` or `vagrant provision`.
-- `config.vm.define "hrobinSW"` declares the worker VM.
+- `config.vm.define "iargenceSW"` declares the worker VM.
 - `worker.vm.box = "ubuntu/jammy64"` uses the same Ubuntu base image for the worker.
-- `worker.vm.hostname = "hrobinSW"` sets the worker hostname.
+- `worker.vm.hostname = "iargenceSW"` sets the worker hostname.
 - `worker.vm.network "private_network", ip: "192.168.56.111"` gives the worker its static private IP.
 - `vb.memory = 1024` gives the worker 1 GB of RAM.
 - `vb.cpus = 1` keeps the worker at one CPU.
@@ -109,7 +109,7 @@ If the cluster is destroyed and recreated, this token can change. It belongs to 
 
 ### `scripts/server.sh`
 
-This script provisions the `hrobinS` VM as the K3s server node.
+This script provisions the `iargenceS` VM as the K3s server node.
 
 - `set -e` stops the script immediately if a command fails.
 - `SERVER_IP="192.168.56.110"` stores the static private IP assigned in `vagrantfile`.
@@ -127,7 +127,7 @@ This script provisions the `hrobinS` VM as the K3s server node.
 
 ### `scripts/worker.sh`
 
-This script provisions the `hrobinSW` VM as a K3s agent node.
+This script provisions the `iargenceSW` VM as a K3s agent node.
 
 - `set -e` stops the script on the first failure.
 - `WORKER_IP="192.168.56.111"` stores the worker's static private IP.
@@ -142,7 +142,7 @@ This script provisions the `hrobinSW` VM as a K3s agent node.
 
 ## How the Cluster Is Built
 
-Vagrant starts `hrobinS` first. That VM gets the static private IP `192.168.56.110`.
+Vagrant starts `iargenceS` first. That VM gets the static private IP `192.168.56.110`.
 
 The server provisioning script:
 
@@ -155,7 +155,7 @@ The server provisioning script:
 7. Copies the join token to `/vagrant_shared/token`.
 8. Copies the kubeconfig to `/home/vagrant/.kube/config`.
 
-Then Vagrant starts `hrobinSW`. That VM gets the static private IP `192.168.56.111`.
+Then Vagrant starts `iargenceSW`. That VM gets the static private IP `192.168.56.111`.
 
 The worker provisioning script:
 
@@ -206,13 +206,13 @@ vagrant up
 Connect to the server:
 
 ```sh
-vagrant ssh hrobinS
+vagrant ssh iargenceS
 ```
 
 Connect to the worker:
 
 ```sh
-vagrant ssh hrobinSW
+vagrant ssh iargenceSW
 ```
 
 ## How to Verify
@@ -227,8 +227,8 @@ Expected result:
 
 ```text
 NAME       STATUS   ROLES           INTERNAL-IP
-hrobins    Ready    control-plane   192.168.56.110
-hrobinsw   Ready    <none>          192.168.56.111
+iargences    Ready    control-plane   192.168.56.110
+iargencesw   Ready    <none>          192.168.56.111
 ```
 
 The exact age, version, kernel, and runtime columns can be different.
@@ -236,7 +236,7 @@ The exact age, version, kernel, and runtime columns can be different.
 You can also run the check from the host:
 
 ```sh
-vagrant ssh hrobinS -c 'kubectl get nodes -o wide'
+vagrant ssh iargenceS -c 'kubectl get nodes -o wide'
 ```
 
 ## Useful Commands
@@ -250,26 +250,26 @@ vagrant status
 Check the server K3s service:
 
 ```sh
-vagrant ssh hrobinS -c 'sudo systemctl status k3s --no-pager'
+vagrant ssh iargenceS -c 'sudo systemctl status k3s --no-pager'
 ```
 
 Check the worker K3s service:
 
 ```sh
-vagrant ssh hrobinSW -c 'sudo systemctl status k3s-agent --no-pager'
+vagrant ssh iargenceSW -c 'sudo systemctl status k3s-agent --no-pager'
 ```
 
 Check the VM interfaces:
 
 ```sh
-vagrant ssh hrobinS -c "ip -br addr"
-vagrant ssh hrobinSW -c "ip -br addr"
+vagrant ssh iargenceS -c "ip -br addr"
+vagrant ssh iargenceSW -c "ip -br addr"
 ```
 
 Check all Kubernetes pods:
 
 ```sh
-vagrant ssh hrobinS -c 'kubectl get pods -A'
+vagrant ssh iargenceS -c 'kubectl get pods -A'
 ```
 
 Destroy the environment:
@@ -283,8 +283,8 @@ vagrant destroy -f
 After the corrections, both VMs were running and both nodes were visible from the server:
 
 ```text
-hrobins    Ready    control-plane   192.168.56.110
-hrobinsw   Ready    <none>          192.168.56.111
+iargences    Ready    control-plane   192.168.56.110
+iargencesw   Ready    <none>          192.168.56.111
 ```
 
 That satisfies the purpose of Part 1: prove that a K3s server and a K3s worker can be created with Vagrant and joined into one Kubernetes cluster.

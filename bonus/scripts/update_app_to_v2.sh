@@ -19,4 +19,6 @@ git -C "$tmp_repo" add "$APP_PATH/deployment.yaml"
 git -C "$tmp_repo" commit -m "Update playground to v2" || true
 git -C "$tmp_repo" push origin main
 
+kubectl -n "${ARGOCD_NAMESPACE:-argocd}" annotate application "${APP_NAME:-playground}" argocd.argoproj.io/refresh=normal --overwrite >/dev/null 2>&1 || true
+
 echo "Pushed v2 to local GitLab. Argo CD should sync the change into the dev namespace."

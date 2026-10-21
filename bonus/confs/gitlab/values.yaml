@@ -3,6 +3,8 @@ global:
   ingress:
     class: nginx
     configureCertmanager: false
+    tls:
+      enabled: false
   hosts:
     domain: 127.0.0.1.nip.io
     https: false
@@ -22,5 +24,15 @@ registry:
 nginx-ingress:
   enabled: true
   controller:
+    scope:
+      enabled: false
     service:
       type: LoadBalancer
+
+postgresql:
+  metrics:
+    enabled: false
+
+redis:
+  metrics:
+    enabled: false

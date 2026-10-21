@@ -10,6 +10,11 @@ if [ -z "$FLANNEL_IFACE" ]; then
   exit 1
 fi
 
+if [ -f /etc/systemd/resolved.conf ]; then
+  sed -i "s/^#*DNSSEC=.*/DNSSEC=no/" /etc/systemd/resolved.conf
+  systemctl restart systemd-resolved || true
+fi
+
 apt-get update -y
 
 curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--bind-address=${SERVER_IP} \
@@ -27,7 +32,7 @@ until kubectl get --raw=/readyz >/dev/null 2>&1; do
   sleep 2
 done
 
-cp /var/lib/rancher/k3s/server/node-token /vagrant_shared/token
+cat /var/lib/rancher/k3s/server/node-token > /vagrant_shared/token 2>/dev/null || cp --no-preserve=mode,ownership /var/lib/rancher/k3s/server/node-token /vagrant_shared/token
 
 mkdir -p /home/vagrant/.kube
 cp /etc/rancher/k3s/k3s.yaml /home/vagrant/.kube/config

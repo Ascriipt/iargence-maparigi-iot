@@ -10,8 +10,8 @@ digraph G {
     label="Vagrant + VirtualBox";
     color="#94a3b8";
     style="rounded,dashed";
-    server [label="hrobinS\n192.168.56.110\nK3s server\ncontrol plane", fillcolor="#dbeafe", color="#2563eb"];
-    worker [label="hrobinSW\n192.168.56.111\nK3s agent\nworker node", fillcolor="#dcfce7", color="#16a34a"];
+    server [label="iargenceS\n192.168.56.110\nK3s server\ncontrol plane", fillcolor="#dbeafe", color="#2563eb"];
+    worker [label="iargenceSW\n192.168.56.111\nK3s agent\nworker node", fillcolor="#dcfce7", color="#16a34a"];
   }
 
   host -> server [label="vagrant up"];

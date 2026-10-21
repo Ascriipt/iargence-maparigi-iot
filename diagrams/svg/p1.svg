@@ -24,7 +24,7 @@
 <g id="node3" class="node">
 <title>server</title>
 <path fill="#dbeafe" stroke="#2563eb" d="M469.48,-110.35C469.48,-110.35 391.57,-110.35 391.57,-110.35 385.57,-110.35 379.57,-104.35 379.57,-98.35 379.57,-98.35 379.57,-52.39 379.57,-52.39 379.57,-46.39 385.57,-40.39 391.57,-40.39 391.57,-40.39 469.48,-40.39 469.48,-40.39 475.48,-40.39 481.48,-46.39 481.48,-52.39 481.48,-52.39 481.48,-98.35 481.48,-98.35 481.48,-104.35 475.48,-110.35 469.48,-110.35"/>
-<text xml:space="preserve" text-anchor="middle" x="430.53" y="-92.47" font-family="Inter,Arial" font-size="12.00">hrobinS</text>
+<text xml:space="preserve" text-anchor="middle" x="430.53" y="-92.47" font-family="Inter,Arial" font-size="12.00">iargenceS</text>
 <text xml:space="preserve" text-anchor="middle" x="430.53" y="-78.22" font-family="Inter,Arial" font-size="12.00">192.168.56.110</text>
 <text xml:space="preserve" text-anchor="middle" x="430.53" y="-63.97" font-family="Inter,Arial" font-size="12.00">K3s server</text>
 <text xml:space="preserve" text-anchor="middle" x="430.53" y="-49.72" font-family="Inter,Arial" font-size="12.00">control plane</text>
@@ -40,7 +40,7 @@
 <g id="node4" class="node">
 <title>worker</title>
 <path fill="#dcfce7" stroke="#16a34a" d="M278.57,-110.35C278.57,-110.35 201.41,-110.35 201.41,-110.35 195.41,-110.35 189.41,-104.35 189.41,-98.35 189.41,-98.35 189.41,-52.39 189.41,-52.39 189.41,-46.39 195.41,-40.39 201.41,-40.39 201.41,-40.39 278.57,-40.39 278.57,-40.39 284.57,-40.39 290.57,-46.39 290.57,-52.39 290.57,-52.39 290.57,-98.35 290.57,-98.35 290.57,-104.35 284.57,-110.35 278.57,-110.35"/>
-<text xml:space="preserve" text-anchor="middle" x="239.99" y="-92.47" font-family="Inter,Arial" font-size="12.00">hrobinSW</text>
+<text xml:space="preserve" text-anchor="middle" x="239.99" y="-92.47" font-family="Inter,Arial" font-size="12.00">iargenceSW</text>
 <text xml:space="preserve" text-anchor="middle" x="239.99" y="-78.22" font-family="Inter,Arial" font-size="12.00">192.168.56.111</text>
 <text xml:space="preserve" text-anchor="middle" x="239.99" y="-63.97" font-family="Inter,Arial" font-size="12.00">K3s agent</text>
 <text xml:space="preserve" text-anchor="middle" x="239.99" y="-49.72" font-family="Inter,Arial" font-size="12.00">worker node</text>

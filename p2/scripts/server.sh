@@ -9,6 +9,11 @@ if [ -z "$FLANNEL_IFACE" ]; then
   exit 1
 fi
 
+if [ -f /etc/systemd/resolved.conf ]; then
+  sed -i "s/^#*DNSSEC=.*/DNSSEC=no/" /etc/systemd/resolved.conf
+  systemctl restart systemd-resolved || true
+fi
+
 apt-get update -y
 apt-get install -y curl
 
@@ -26,7 +31,7 @@ mkdir -p /home/vagrant/.kube
 cp /etc/rancher/k3s/k3s.yaml /home/vagrant/.kube/config
 chown -R vagrant:vagrant /home/vagrant/.kube
 
-until kubectl get nodes >/dev/null 2>&1; do
+until [ -n "$(kubectl get nodes --no-headers 2>/dev/null)" ]; do
   sleep 2
 done
 

@@ -11,6 +11,7 @@ GITLAB_HTTP_PORT="${GITLAB_HTTP_PORT:-8080}"
 GITLAB_ROOT_PASSWORD="${GITLAB_ROOT_PASSWORD:-RootPassword42!}"
 GITLAB_TOKEN="${GITLAB_TOKEN:-iot-local-token-42}"
 GITLAB_PROJECT="${GITLAB_PROJECT:-iot-gitops}"
+GITLAB_CHART_VERSION="${GITLAB_CHART_VERSION:-8.11.8}"
 APP_NAME="${APP_NAME:-playground}"
 APP_PATH="${APP_PATH:-confs/app}"
 TARGET_REVISION="${TARGET_REVISION:-main}"
@@ -51,6 +52,45 @@ if ! k3d cluster list "$CLUSTER_NAME" >/dev/null 2>&1; then
     --k3s-arg "--disable=traefik@server:0"
 fi
 
+# Ensure Bitnami and MinIO images exist locally and are imported into k3d
+docker pull bitnamilegacy/postgresql:14.8.0 >/dev/null 2>&1 || true
+docker pull bitnamilegacy/redis:7.2.4-debian-12-r9 >/dev/null 2>&1 || true
+docker pull bitnamilegacy/minio:latest >/dev/null 2>&1 || true
+docker pull bitnamilegacy/minio-client:latest >/dev/null 2>&1 || true
+
+docker tag bitnamilegacy/postgresql:14.8.0 bitnami/postgresql:14.8.0 2>/dev/null || true
+docker tag bitnamilegacy/redis:7.2.4-debian-12-r9 bitnami/redis:7.2.4-debian-12-r9 2>/dev/null || true
+
+printf 'FROM bitnamilegacy/minio:latest\nENTRYPOINT ["/opt/bitnami/minio/bin/minio"]\n' | docker build -t minio/minio:RELEASE.2017-12-28T01-21-00Z - >/dev/null 2>&1 || true
+
+cat << 'EOF' > /tmp/mc_wrapper.sh
+#!/bin/sh
+if [ "$1" = "config" ] && [ "$2" = "host" ] && [ "$3" = "add" ]; then
+    shift 3
+    exec /opt/bitnami/minio-client/bin/mc alias set "$@"
+elif [ "$1" = "policy" ]; then
+    shift 1
+    policy="$1"
+    target="$2"
+    if [ "$policy" = "none" ]; then
+        exit 0
+    fi
+    exec /opt/bitnami/minio-client/bin/mc anonymous set "$policy" "$target"
+fi
+exec /opt/bitnami/minio-client/bin/mc "$@"
+EOF
+chmod +x /tmp/mc_wrapper.sh
+rm -rf /tmp/mc_build && mkdir -p /tmp/mc_build && cp /tmp/mc_wrapper.sh /tmp/mc_build/mc
+printf 'FROM bitnamilegacy/minio-client:latest\nUSER 0\nCOPY mc /usr/bin/mc\nRUN chmod 755 /usr/bin/mc\nUSER 1001\nENTRYPOINT ["/usr/bin/mc"]\n' > /tmp/mc_build/Dockerfile
+docker build -t minio/mc:RELEASE.2018-07-13T00-53-22Z /tmp/mc_build >/dev/null 2>&1 || true
+
+k3d image import \
+  bitnami/postgresql:14.8.0 \
+  bitnami/redis:7.2.4-debian-12-r9 \
+  minio/minio:RELEASE.2017-12-28T01-21-00Z \
+  minio/mc:RELEASE.2018-07-13T00-53-22Z \
+  -c "$CLUSTER_NAME" >/dev/null 2>&1 || true
+
 kubectl config use-context "k3d-${CLUSTER_NAME}"
 
 kubectl create namespace "$GITLAB_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
@@ -65,11 +105,13 @@ helm repo add gitlab https://charts.gitlab.io
 helm repo update
 
 helm upgrade --install gitlab gitlab/gitlab \
+  --version "$GITLAB_CHART_VERSION" \
   --namespace "$GITLAB_NAMESPACE" \
   --timeout 20m \
   --values confs/gitlab/values.yaml \
   --set global.hosts.domain="$GITLAB_DOMAIN" \
   --set global.hosts.https=false \
+  --set global.ingress.tls.enabled=false \
   --set global.initialRootPassword.secret=gitlab-root-password \
   --set global.initialRootPassword.key=password
 
@@ -95,9 +137,19 @@ wait_deployments "app=toolbox"
 
 toolbox_pod="$(kubectl -n "$GITLAB_NAMESPACE" get pod -l app=toolbox -o jsonpath='{.items[0].metadata.name}')"
 
-kubectl -n "$GITLAB_NAMESPACE" exec "$toolbox_pod" -- env IOT_TOKEN="$GITLAB_TOKEN" IOT_PROJECT="$GITLAB_PROJECT" gitlab-rails runner '
+kubectl -n "$GITLAB_NAMESPACE" exec "$toolbox_pod" -- bash -c '
+  if ! gitlab-rails runner "exit(User.find_by_username(\"root\") ? 0 : 1)" >/dev/null 2>&1; then
+    env -u GITLAB_ROOT_PASSWORD gitlab-rake db:seed_fu
+  fi
+'
+
+kubectl -n "$GITLAB_NAMESPACE" exec "$toolbox_pod" -- env IOT_TOKEN="$GITLAB_TOKEN" IOT_PROJECT="$GITLAB_PROJECT" GITLAB_ROOT_PASSWORD="$GITLAB_ROOT_PASSWORD" gitlab-rails runner '
 user = User.find_by_username("root")
 raise "root user not found" unless user
+
+user.password = ENV.fetch("GITLAB_ROOT_PASSWORD", "RootPassword42!")
+user.password_confirmation = ENV.fetch("GITLAB_ROOT_PASSWORD", "RootPassword42!")
+user.save(validate: false)
 
 token = user.personal_access_tokens.find_by(name: "iot-local-token")
 token&.destroy
@@ -109,8 +161,10 @@ token = user.personal_access_tokens.create!(
 token.set_token(ENV.fetch("IOT_TOKEN"))
 token.save!
 
+ApplicationSetting.current.update!(default_branch_protection: 0) rescue nil
 path = "root/#{ENV.fetch("IOT_PROJECT")}"
-unless Project.find_by_full_path(path)
+project = Project.find_by_full_path(path)
+unless project
   result = Projects::CreateService.new(user, {
     name: ENV.fetch("IOT_PROJECT"),
     path: ENV.fetch("IOT_PROJECT"),
@@ -118,7 +172,11 @@ unless Project.find_by_full_path(path)
     visibility_level: Gitlab::VisibilityLevel::PUBLIC
   }).execute
   raise result[:message].to_s unless result[:status] == :success
+  project = result[:project]
 end
+branch = project.protected_branches.find_by(name: "main") || project.protected_branches.new(name: "main")
+branch.allow_force_push = true
+branch.save!
 '
 
 tmp_repo="$(mktemp -d)"

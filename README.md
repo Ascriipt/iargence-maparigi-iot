@@ -22,8 +22,8 @@ Use this section as the short defense path for the correction PDF. Each part als
 | Basic operation of K3d | Key Concepts | K3d runs K3s clusters as Docker containers, which is why Part 3 needs Docker. |
 | Continuous integration and Argo CD | Key Concepts | CI builds/tests changes; Argo CD is GitOps CD that syncs Kubernetes state from Git. |
 | Required folders | Repository Layout | `p1`, `p2`, and `p3` are present. `bonus` is present for the optional GitLab part. |
-| Part 1 Vagrantfile | `p1/vagrantfile` | Two VMs: `hrobinS` and `hrobinSW`, IPs `192.168.56.110` and `192.168.56.111`. |
-| Part 1 usage | `p1/README.md` | `vagrant up`, `vagrant ssh hrobinS`, `vagrant ssh hrobinSW`, `kubectl get nodes -o wide`. |
+| Part 1 Vagrantfile | `p1/vagrantfile` | Two VMs: `iargenceS` and `iargenceSW`, IPs `192.168.56.110` and `192.168.56.111`. |
+| Part 1 usage | `p1/README.md` | `vagrant up`, `vagrant ssh iargenceS`, `vagrant ssh iargenceSW`, `kubectl get nodes -o wide`. |
 | Part 2 Vagrantfile | `p2/Vagrantfile` | One VM: `maparigiS`, IP `192.168.56.110`. |
 | Part 2 apps | `p2/confs/apps.yaml` | `app1` has 1 replica, `app2` has 3 replicas, `app3` has 1 replica. |
 | Part 2 Ingress | `p2/README.md` | Use `curl -H "Host: app1.com" http://192.168.56.110` and similar commands. |
@@ -84,11 +84,11 @@ bonus/
 
 **Cluster** means the whole Kubernetes environment. It contains the machines or containers that run Kubernetes itself and the application workloads.
 
-**Node** means one machine that belongs to the cluster. In `p1`, `hrobinS` and `hrobinSW` are two nodes. In `p2`, `maparigiS` is one node. In `p3` and `bonus`, K3d creates Docker containers that behave like Kubernetes nodes.
+**Node** means one machine that belongs to the cluster. In `p1`, `iargenceS` and `iargenceSW` are two nodes. In `p2`, `maparigiS` is one node. In `p3` and `bonus`, K3d creates Docker containers that behave like Kubernetes nodes.
 
 **Control plane** is the brain of the cluster. It exposes the Kubernetes API, stores cluster state, schedules workloads, and manages controllers. In K3s, the server node runs the control plane.
 
-**Worker** is a node that runs application workloads. In `p1`, `hrobinSW` is the worker. K3s server nodes can also run workloads, which is why `p2` can run apps on its single server VM.
+**Worker** is a node that runs application workloads. In `p1`, `iargenceSW` is the worker. K3s server nodes can also run workloads, which is why `p2` can run apps on its single server VM.
 
 **K3s** is a lightweight Kubernetes distribution. It gives you a real Kubernetes cluster with fewer moving parts than a full upstream Kubernetes installation. In `p1`, one VM runs K3s server mode and one VM runs K3s agent mode. In `p2`, one VM runs K3s server mode and also runs the application pods.
 
@@ -175,8 +175,8 @@ Part 1 asks for:
 
 `p1/vagrantfile` defines two VMs:
 
-- `hrobinS` at `192.168.56.110`;
-- `hrobinSW` at `192.168.56.111`.
+- `iargenceS` at `192.168.56.110`;
+- `iargenceSW` at `192.168.56.111`.
 
 `p1/scripts/server.sh` installs K3s server mode. It binds and advertises the server on `192.168.56.110`, detects the Flannel interface, waits for K3s to become usable, and writes the node token into `/vagrant_shared/token`.
 
@@ -205,21 +205,21 @@ vagrant status
 Check nodes:
 
 ```sh
-vagrant ssh hrobinS -c 'kubectl get nodes -o wide'
+vagrant ssh iargenceS -c 'kubectl get nodes -o wide'
 ```
 
 Expected result:
 
 ```text
-hrobins    Ready    control-plane   192.168.56.110
-hrobinsw   Ready    <none>          192.168.56.111
+iargences    Ready    control-plane   192.168.56.110
+iargencesw   Ready    <none>          192.168.56.111
 ```
 
 Check K3s services:
 
 ```sh
-vagrant ssh hrobinS -c 'sudo systemctl status k3s --no-pager'
-vagrant ssh hrobinSW -c 'sudo systemctl status k3s-agent --no-pager'
+vagrant ssh iargenceS -c 'sudo systemctl status k3s --no-pager'
+vagrant ssh iargenceSW -c 'sudo systemctl status k3s-agent --no-pager'
 ```
 
 Stop or delete:
