@@ -57,13 +57,23 @@ Si vous modifiez des fichiers sur l'hôte 42, vous pouvez synchroniser la VM en 
 
 ### 0.5 Recréation complète de la VM à zéro (Cas d'urgence extrême)
 Si la machine virtuelle parente est supprimée ou corrompue et que `./host/start_vm.sh` indique qu'elle n'est plus définie :
+
+> [!NOTE]
+> Le script `setup_parent_vm.sh` utilise l'image officielle Debian Cloud avec **cloud-init** (`debian-12-generic-amd64.qcow2`) et `genisoimage`. Il **ne requiert aucun droit root (`sudo`) ni paquet `virt-customize`**, ce qui le rend immédiatement utilisable sur tous les postes 42.
+
 ```bash
 # Depuis la machine hôte 42 :
-./host/setup_parent_vm.sh                                   # Recrée la VM et son disque
-ssh -p 22222 vagrant@127.0.0.1 'bash -s' < host/provision_debian.sh  # Installe les outils
+./host/setup_parent_vm.sh                                   # Recrée la VM et son disque via cloud-init
+ssh -p 22222 vagrant@127.0.0.1 'bash -s' < host/provision_debian.sh  # Installe les outils (Docker, KVM, Vagrant, k3d, Helm)
 ./host/sync_project.sh                                      # Synchronise le projet
 ./host/enter_vm.sh                                          # Connexion
 ```
+
+> [!TIP]
+> **Astuce de partage entre binômes** : Si votre binôme a déjà une VM fonctionnelle sur un poste 42, vous pouvez vous copier directement le dossier `/goinfre/<login>/iot_parent_vm` via le réseau 42 pour éviter de re-télécharger l'image et réinstaller les paquets :
+> ```bash
+> scp -r /goinfre/<login_mate>/iot_parent_vm /goinfre/${USER}/
+> ```
 
 ---
 

@@ -46,7 +46,8 @@ if ! k3d cluster list "$CLUSTER_NAME" >/dev/null 2>&1; then
   k3d cluster create "$CLUSTER_NAME" \
     --api-port 6550 \
     -p "8888:80@loadbalancer" \
-    --agents 1
+    --agents 1 \
+    --k3s-arg "--disable-cloud-controller@server:*"
 fi
 
 kubectl config use-context "k3d-${CLUSTER_NAME}"

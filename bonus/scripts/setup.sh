@@ -49,7 +49,8 @@ if ! k3d cluster list "$CLUSTER_NAME" >/dev/null 2>&1; then
     --api-port 6552 \
     -p "${GITLAB_HTTP_PORT}:80@loadbalancer" \
     --agents 1 \
-    --k3s-arg "--disable=traefik@server:0"
+    --k3s-arg "--disable=traefik@server:0" \
+    --k3s-arg "--disable-cloud-controller@server:*"
 fi
 
 # Ensure Bitnami and MinIO images exist locally and are imported into k3d

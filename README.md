@@ -70,7 +70,27 @@ bonus/
     gitlab/values.yaml
     argocd/application.yaml.tpl
     app/deployment.yaml
+
+host/
+  setup_parent_vm.sh
+  provision_debian.sh
+  start_vm.sh
+  stop_vm.sh
+  status_vm.sh
+  enter_vm.sh
+  sync_project.sh
 ```
+
+## 42 Host Environment & Parent VM
+
+At school 42, host machines enforce strict non-root policies and lack native VirtualBox support. To run this project effortlessly, an automated Debian 12 parent VM (`iot-parent`) provides KVM hardware acceleration, Libvirt, and native Docker.
+
+- `host/setup_parent_vm.sh`: downloads the official Debian 12 cloud image (`debian-12-generic-amd64.qcow2`) and initializes it via **cloud-init** (`cidata.iso` created with `genisoimage` / `xorriso`). **No root (`sudo`) or `virt-customize` package is required.**
+- `host/provision_debian.sh`: installs Vagrant, `vagrant-libvirt`, QEMU/KVM, Docker, kubectl, k3d, and Helm inside the parent VM.
+- `host/start_vm.sh` & `host/stop_vm.sh`: starts and gracefully stops the parent VM.
+- `host/status_vm.sh`: displays the parent VM state and SSH connectivity.
+- `host/enter_vm.sh`: opens an SSH session to `vagrant@127.0.0.1:22222`.
+- `host/sync_project.sh`: rsyncs project files from the 42 host to `~/IOT` in the parent VM.
 
 ## Key Concepts
 
