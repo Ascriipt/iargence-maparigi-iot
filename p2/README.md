@@ -144,6 +144,7 @@ This script provisions the `maparigiS` VM, installs K3s, and deploys the three w
 - `SERVER_IP="192.168.56.110"` stores the static private IP from `Vagrantfile`.
 - `FLANNEL_IFACE=$(ip -o addr show to "${SERVER_IP}/32" | awk '{print $2; exit}')` detects the private network interface dynamically.
 - The empty-interface check exits early if the expected private IP is missing.
+- Disables DNSSEC in `/etc/systemd/resolved.conf` for reliable DNS resolution.
 - `apt-get update -y` refreshes package metadata.
 - `apt-get install -y curl` ensures the K3s install command can download the installer.
 - `curl -sfL https://get.k3s.io | ... sh -` installs K3s in server mode.

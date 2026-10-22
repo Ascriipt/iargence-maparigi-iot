@@ -34,7 +34,7 @@ Evaluate this part only after p1, p2, and p3 pass perfectly, as required by the 
 | GitLab works locally | `./scripts/setup.sh` installs GitLab with the official Helm chart in the `gitlab` namespace. |
 | A GitLab repository can be created and used | Setup creates `root/iot-gitops` and pushes the v1 app manifests to it. |
 | Part 3 flow still works | Argo CD still runs in `argocd`, the app still runs in `dev`, and the app still updates from v1 to v2. |
-| Argo CD uses local GitLab, not GitHub | The Application repo URL points to `gitlab-webservice-default.gitlab.svc.cluster.local`. |
+| Argo CD uses local GitLab, not GitHub | The Application repo URL points to `gitlab-webservice-default.gitlab.svc.cluster.local:8181`. |
 | Version change succeeds | `./scripts/update_app_to_v2.sh` commits and pushes the v2 manifest to local GitLab. |
 
 Exact commands:
@@ -142,12 +142,11 @@ The version update demonstration changes this file in the GitLab repository from
 This script installs the local tools needed for the bonus on an Ubuntu machine.
 
 - `set -euo pipefail` makes the script fail on command errors, unset variables, and failed pipeline commands.
-- The `SUDO` block lets the script work as root or as a normal user with `sudo`.
-- `apt-get update -y` refreshes package metadata.
-- `apt-get install -y ca-certificates curl git gnupg jq lsb-release docker.io` installs Docker plus the CLI tools used by the setup.
+- `BIN_DIR="${HOME}/.local/bin"` sets user-local binary installation path.
+- If `apt-get` is available, installs Docker, Git, jq, curl, and certificates with root or passwordless sudo privileges.
 - `systemctl enable docker` and `systemctl start docker` enable and start Docker.
 - The Docker group check adds the current user to the `docker` group if needed.
-- The `kubectl`, `k3d`, and `helm` blocks install each tool only if it is missing.
+- The `kubectl`, `k3d`, and `helm` blocks install each tool into `BIN_DIR` only if missing.
 - The final version commands print the installed Docker, K3d, kubectl, and Helm versions.
 
 ### `scripts/setup.sh`
@@ -173,9 +172,9 @@ This is the main bonus setup script. It creates the K3d cluster, installs GitLab
 - `mktemp -d` creates a temporary local Git repository.
 - The script copies `confs/app/*.yaml` into the temporary repository under `APP_PATH`.
 - The Git commands initialize the repository, create the `main` branch, commit the v1 app manifests, add the local GitLab remote, and force-push the initial state.
-- Argo CD is installed into the `argocd` namespace from the official stable manifest.
+- Argo CD is installed into the `argocd` namespace using `kubectl apply --server-side --force-conflicts`.
 - The Argo CD rollout checks wait for the server, repo server, and ApplicationSet controller.
-- `internal_repo_url` points Argo CD at GitLab's in-cluster service address, so syncing does not depend on external DNS.
+- `internal_repo_url` points Argo CD at GitLab's in-cluster service address (`http://root:...@gitlab-webservice-default.gitlab.svc.cluster.local:8181/root/iot-gitops.git`), so syncing does not depend on external DNS.
 - The `sed` command renders `confs/argocd/application.yaml.tpl` with the local GitLab repository and namespace values.
 - `kubectl apply -f "$tmp_application"` creates the Argo CD Application.
 - The final rollout check waits until the synced app Deployment is available in `dev`.
@@ -192,7 +191,8 @@ This script performs the bonus version update demo by committing a change to the
 - The Git config commands set a local commit identity for the temporary clone.
 - The script stages `deployment.yaml`, commits the version change, and allows the commit command to be a no-op if the file was already at v2.
 - `git push origin main` pushes the change to local GitLab.
-- The final message reminds that Argo CD should sync the GitLab change into the `dev` namespace.
+- `kubectl -n argocd annotate application playground argocd.argoproj.io/refresh=normal` triggers an immediate refresh in Argo CD so the change syncs without waiting for the default polling interval.
+- The final message confirms that v2 was pushed and is syncing.
 
 ### `scripts/cleanup.sh`
 
@@ -224,7 +224,7 @@ The script creates:
 Argo CD is installed in the `argocd` namespace. Its Application points to the GitLab service inside the cluster:
 
 ```text
-gitlab-webservice-default.gitlab.svc.cluster.local
+gitlab-webservice-default.gitlab.svc.cluster.local:8181
 ```
 
 That means Argo CD syncs from local GitLab without depending on GitHub.

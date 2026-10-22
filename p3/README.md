@@ -135,13 +135,12 @@ The version update demonstration is controlled by this file. Changing the image 
 This script installs the local tools needed for Part 3 on an Ubuntu machine.
 
 - `set -euo pipefail` makes the script fail on errors, unset variables, and failed pipeline commands.
-- The `SUDO` block lets the script run either as root or as a normal user with `sudo`.
-- `apt-get update -y` refreshes package metadata.
-- `apt-get install -y ca-certificates curl gnupg lsb-release docker.io` installs Docker and basic download/verification tools.
+- `BIN_DIR="${HOME}/.local/bin"` defines the destination directory for non-packaged user binaries.
+- If `apt-get` is available, installs Docker and dependencies using passwordless sudo or root privileges.
 - `systemctl enable docker` and `systemctl start docker` make Docker available immediately and after reboot.
 - The Docker group check adds the current user to `docker` if needed, then warns that a logout/login is required.
-- The `kubectl` block downloads the latest stable Linux AMD64 client only if `kubectl` is not already installed.
-- The `k3d` block installs K3d only if it is missing.
+- The `kubectl` block downloads the latest stable Linux AMD64 client and installs it into `BIN_DIR`.
+- The `k3d` block installs K3d into `BIN_DIR` without requiring root permissions.
 - The final version commands print the installed Docker, K3d, and kubectl versions.
 
 ### `scripts/setup.sh`
@@ -158,7 +157,7 @@ This script creates the K3d cluster, installs Argo CD, and registers the GitOps 
 - `--agents 1` creates one K3d agent node.
 - `kubectl config use-context "k3d-${CLUSTER_NAME}"` selects the new cluster.
 - The namespace commands create `argocd` and `dev` idempotently.
-- `kubectl apply ... argoproj/argo-cd/stable/...` installs Argo CD from the official manifest.
+- `kubectl apply --server-side --force-conflicts -n "$ARGOCD_NAMESPACE" -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml` installs Argo CD using server-side apply to avoid client-side annotation size limit issues with large CRDs.
 - The rollout checks wait until the main Argo CD components are ready.
 - `mktemp` creates a temporary rendered Application manifest, and `trap` removes it at exit.
 - `escape_sed` protects replacement values before inserting them into the template.

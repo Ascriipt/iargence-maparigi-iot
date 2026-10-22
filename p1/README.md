@@ -115,14 +115,16 @@ This script provisions the `iargenceS` VM as the K3s server node.
 - `SERVER_IP="192.168.56.110"` stores the static private IP assigned in `vagrantfile`.
 - `FLANNEL_IFACE=$(ip -o addr show to "${SERVER_IP}/32" | awk '{print $2; exit}')` finds the real Linux network interface that owns the server IP.
 - The empty-interface check exits with a clear error if the private network is not configured correctly.
+- Disables DNSSEC in `/etc/systemd/resolved.conf` to prevent local DNS resolution timeouts on certain hypervisor virtual networks.
 - `apt-get update -y` refreshes the package index before installing K3s dependencies through the K3s installer.
 - `curl -sfL https://get.k3s.io | ... sh -` runs the official K3s installer in server mode.
 - `--bind-address`, `--advertise-address`, and `--node-ip` force K3s to use `192.168.56.110` instead of another VM interface.
 - `--write-kubeconfig-mode=644` makes the generated kubeconfig readable by the `vagrant` user.
+- `--disable-cloud-controller` avoids looking for external cloud provider integrations.
 - `--flannel-iface=${FLANNEL_IFACE}` tells Flannel to use the private network interface for pod networking.
 - The first `while` loop waits until K3s has created both the node token and kubeconfig.
-- The `until kubectl get nodes` loop waits until the Kubernetes API is usable.
-- `cp /var/lib/rancher/k3s/server/node-token /vagrant_shared/token` shares the join token with the worker VM.
+- The `until kubectl get --raw=/readyz` loop waits until the Kubernetes API server is fully ready.
+- `cat /var/lib/rancher/k3s/server/node-token > /vagrant_shared/token` (or `cp --no-preserve=mode,ownership`) copies the join token into `/vagrant_shared` so the worker VM can access it via the 9p shared folder.
 - The final `mkdir`, `cp`, and `chown` commands install kubeconfig for the `vagrant` user so `kubectl` works after SSH login.
 
 ### `scripts/worker.sh`
@@ -133,6 +135,7 @@ This script provisions the `iargenceSW` VM as a K3s agent node.
 - `WORKER_IP="192.168.56.111"` stores the worker's static private IP.
 - `FLANNEL_IFACE=...` detects the worker's private network interface from that IP.
 - The empty-interface check prevents installing K3s with a bad Flannel interface.
+- Disables DNSSEC in `/etc/systemd/resolved.conf` for DNS stability.
 - `apt-get update -y` refreshes package metadata.
 - The `while [ ! -f /vagrant_shared/token ]` loop waits until the server has written its join token.
 - `TOKEN=$(cat /vagrant_shared/token)` reads the token produced by the server.

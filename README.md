@@ -590,6 +590,18 @@ Expected output:
 {"status":"ok", "message": "v2"}
 ```
 
+Open Argo CD UI (port 8081 because port 8080 is used by GitLab):
+
+```sh
+kubectl -n argocd port-forward svc/argocd-server 8081:443
+```
+
+Password:
+
+```sh
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
+```
+
 Cleanup:
 
 ```sh
