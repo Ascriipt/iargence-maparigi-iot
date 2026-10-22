@@ -7,7 +7,7 @@ digraph G {
   shared [label="p1/shared/token\nmounted as /vagrant_shared", fillcolor="#fef9c3", color="#ca8a04"];
 
   subgraph cluster_vms {
-    label="Vagrant + VirtualBox";
+    label="Vagrant (Libvirt / VirtualBox)";
     color="#94a3b8";
     style="rounded,dashed";
     server [label="iargenceS\n192.168.56.110\nK3s server\ncontrol plane", fillcolor="#dbeafe", color="#2563eb"];

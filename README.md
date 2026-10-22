@@ -18,7 +18,7 @@ Use this section as the short defense path for the correction PDF. Each part als
 | Scale question | Where to show it | Command or answer |
 | --- | --- | --- |
 | Basic operation of K3s | Key Concepts | K3s is lightweight Kubernetes. A server node runs the control plane; an agent joins it as a worker. |
-| Basic operation of Vagrant | Key Concepts | Vagrant describes VMs as code and provisions them with shell scripts through VirtualBox. |
+| Basic operation of Vagrant | Key Concepts | Vagrant describes VMs as code and provisions them with shell scripts through hypervisors like Libvirt/KVM or VirtualBox. |
 | Basic operation of K3d | Key Concepts | K3d runs K3s clusters as Docker containers, which is why Part 3 needs Docker. |
 | Continuous integration and Argo CD | Key Concepts | CI builds/tests changes; Argo CD is GitOps CD that syncs Kubernetes state from Git. |
 | Required folders | Repository Layout | `p1`, `p2`, and `p3` are present. `bonus` is present for the optional GitLab part. |
@@ -32,7 +32,7 @@ Use this section as the short defense path for the correction PDF. Each part als
 | Part 3 Docker image | `p3/confs/app/deployment.yaml` | Uses `wil42/playground:v1`, then the demo changes it to `wil42/playground:v2`. |
 | Bonus GitLab | `bonus/README.md` | Local GitLab runs in the `gitlab` namespace and replaces GitHub as Argo CD's Git source. |
 
-The correction PDF text says to check for CentOS in p1 and p2. This repository currently uses the stable `ubuntu/jammy64` Vagrant box in both Vagrantfiles. If the evaluator applies that CentOS line strictly, the Vagrant boxes must be changed in code; the rest of the documented checks remain the same.
+The correction PDF text says to check for CentOS in p1 and p2. This repository currently uses the stable Ubuntu 22.04 LTS box `generic/ubuntu2204` (which provides native support for both Libvirt/KVM and VirtualBox) in both Vagrantfiles. If the evaluator applies that CentOS line strictly, the Vagrant boxes must be changed in code; the rest of the documented checks remain the same.
 
 ## Repository Layout
 
@@ -76,7 +76,7 @@ bonus/
 
 **Vagrant** creates repeatable virtual machines from code. In `p1` and `p2`, Vagrant starts Ubuntu VMs, assigns static private IPs, and runs provisioning scripts.
 
-**VirtualBox** is the Vagrant provider used to run the VMs.
+**Libvirt / KVM** (or **VirtualBox**) is the hypervisor provider used to run the VMs. In our automated parent VM environment, Libvirt is used via `vagrant-libvirt`.
 
 **Docker** runs containers. A container packages an application with the files it needs to run. In `p3` and `bonus`, Docker is also used by K3d to run an entire Kubernetes cluster as Docker containers.
 
@@ -128,7 +128,7 @@ bonus/
 
 ## Important Tricky Part: Network Interfaces
 
-The subject examples mention old interface names such as `eth0` and `eth1`, but modern Ubuntu boxes use predictable names such as `enp0s8`.
+The subject examples mention old interface names such as `eth0` and `eth1`, but modern Linux boxes use dynamic or predictable names depending on the provider (e.g. `eth1` on Libvirt, `enp0s8` on VirtualBox).
 
 Hard-coding:
 
@@ -136,7 +136,7 @@ Hard-coding:
 --flannel-iface=eth1
 ```
 
-caused K3s to fail because the interface did not exist.
+caused K3s to fail if the interface did not exist or differed from the provider expectation.
 
 The scripts now detect the correct interface from the static private IP:
 
@@ -150,7 +150,7 @@ This is used in:
 - `p1/scripts/worker.sh`
 - `p2/scripts/server.sh`
 
-That makes the setup work with the real interface name, for example `enp0s8`.
+That makes the setup work reliably regardless of the hypervisor interface naming (e.g. `eth1` or `enp0s8`).
 
 ## Part 1: K3s and Vagrant
 
@@ -159,7 +159,7 @@ That makes the setup work with the real interface name, for example `enp0s8`.
 Part 1 asks for:
 
 - two Vagrant machines;
-- a stable Linux Vagrant box. The correction PDF text says CentOS; this repo currently uses `ubuntu/jammy64`;
+- a stable Linux Vagrant box. The correction PDF text says CentOS; this repo currently uses the stable Ubuntu 22.04 LTS box `generic/ubuntu2204`;
 - low resources, usually 1 CPU and 512 MB or 1024 MB RAM;
 - hostnames based on a team login:
   - server ends with `S`;
@@ -236,7 +236,7 @@ vagrant destroy -f
 Part 2 asks for:
 
 - one Vagrant VM;
-- a stable Linux Vagrant box. The correction PDF text says CentOS; this repo currently uses `ubuntu/jammy64`;
+- a stable Linux Vagrant box. The correction PDF text says CentOS; this repo currently uses the stable Ubuntu 22.04 LTS box `generic/ubuntu2204`;
 - K3s installed in server mode;
 - VM name based on login plus `S`;
 - VM IP: `192.168.56.110`;

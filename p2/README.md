@@ -15,7 +15,7 @@ The hostname follows the subject rule: use a team login, then add `S` for the se
 The PDF asks Part 2 to provide:
 
 - one virtual machine managed by Vagrant;
-- a stable Linux Vagrant box. The correction PDF text says CentOS; this repo currently uses `ubuntu/jammy64`;
+- a stable Linux Vagrant box. The correction PDF text says CentOS; this repo currently uses the stable Ubuntu 22.04 LTS box `generic/ubuntu2204`;
 - K3s installed in server mode;
 - the VM named with a team login followed by `S`;
 - the VM reachable at `192.168.56.110`;
@@ -27,9 +27,9 @@ The PDF asks Part 2 to provide:
 - app2 must run with 3 replicas;
 - the Ingress must be shown during evaluation.
 
-This project uses `ubuntu/jammy64`, VirtualBox, Vagrant shell provisioning, K3s, nginx containers, and the default K3s Traefik Ingress controller.
+This project uses `generic/ubuntu2204` (Ubuntu 22.04 LTS), Libvirt/KVM (via `vagrant-libvirt`), Vagrant shell provisioning, K3s, nginx containers, and the default K3s Traefik Ingress controller.
 
-The correction PDF text says to check for CentOS. This implementation uses the stable `ubuntu/jammy64` box. If the local evaluator requires the literal CentOS wording, change `config.vm.box` in `Vagrantfile`; the K3s, app, replica, and Ingress checks below are unchanged.
+The correction PDF text says to check for CentOS. This implementation uses the stable `generic/ubuntu2204` (Ubuntu 22.04 LTS) box. If the local evaluator requires the literal CentOS wording, change `config.vm.box` in `Vagrantfile`; the K3s, app, replica, and Ingress checks below are unchanged.
 
 ## Evaluation Checklist
 
@@ -41,7 +41,7 @@ Use this path during defense to answer the Part 2 correction questions.
 | Only one virtual machine is configured | `maparigiS`. |
 | VM name includes a login and ends with `S` | `maparigiS` ends with `S`. |
 | Static private IP is configured | `192.168.56.110`. |
-| Private interface exists | Run `ip -br addr` or `ip addr show` inside the VM and find the interface carrying `192.168.56.110`. On this Ubuntu box it is usually `enp0s8`, not `eth1`. |
+| Private interface exists | Run `ip -br addr` or `ip addr show` inside the VM and find the interface carrying `192.168.56.110`. The scripts detect this dynamically (e.g. `eth1` on Libvirt, `enp0s8` on VirtualBox). |
 | Hostname is correct | `vagrant ssh maparigiS -c hostname`. |
 | Machine uses K3s | `sudo systemctl is-active k3s` should return `active`. |
 | Node is visible | `kubectl get nodes -o wide` shows `maparigis` with internal IP `192.168.56.110`. |
@@ -92,15 +92,18 @@ The `Host` header is required because the Ingress rules route several virtual ho
 
 ### `Vagrantfile`
 
-This file describes the single VirtualBox VM used for Part 2.
+This file describes the single virtual machine used for Part 2 using the `libvirt` provider.
 
 - `Vagrant.configure("2")` selects Vagrant's version 2 configuration format.
-- `config.vm.box = "ubuntu/jammy64"` uses Ubuntu 22.04 as the base image.
+- `config.vm.box = "generic/ubuntu2204"` uses Ubuntu 22.04 LTS as the base image (with native Libvirt and VirtualBox support).
+- `config.vm.synced_folder ".", "/vagrant", type: "9p", disabled: false` mounts the local project directory inside the VM at `/vagrant` using 9p.
 - `config.vm.define "maparigiS"` declares the VM name used by Vagrant commands.
 - `server.vm.hostname = "maparigiS"` sets the hostname inside the VM.
 - `server.vm.network "private_network", ip: "192.168.56.110"` gives the VM the static private IP required by the subject.
-- `vb.memory = 2048` gives the VM enough RAM to run K3s, Traefik, and the application pods.
-- `vb.cpus = 1` keeps the VM at one CPU.
+- `server.vm.provider :libvirt do |lv|` configures the Libvirt provider settings:
+  - `lv.memory = 2048` gives the VM enough RAM to run K3s, Traefik, and the application pods.
+  - `lv.cpus = 1` keeps the VM at one CPU.
+  - `lv.nested = true` enables nested virtualization.
 - `server.vm.provision "shell", path: "scripts/server.sh"` runs the provisioning script that installs K3s and applies the manifests.
 
 ### `confs/apps.yaml`
@@ -217,7 +220,7 @@ The final catch-all route is important for the subject requirement that app3 is 
 
 The first run failed for the same reason as Part 1: the provisioning script hard-coded the Flannel interface as `eth1`.
 
-On this `ubuntu/jammy64` VM, the private interface is named `enp0s8`, not `eth1`. K3s failed during startup because it could not find the requested interface.
+On this `generic/ubuntu2204` VM under Libvirt, the private interface is typically named `eth1` (or `enp0s8` under VirtualBox), not a hardcoded name. K3s failed during startup when an invalid interface name was assumed.
 
 The fix is to detect the interface from the static private IP:
 

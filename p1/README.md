@@ -19,7 +19,7 @@ The names follow the subject rule: use a team login, then add `S` for the server
 The PDF asks Part 1 to provide:
 
 - two machines managed by Vagrant;
-- a stable Linux Vagrant box. The correction PDF text says CentOS; this repo currently uses `ubuntu/jammy64`;
+- a stable Linux Vagrant box. The correction PDF text says CentOS; this repo currently uses the stable Ubuntu 22.04 LTS box `generic/ubuntu2204`;
 - minimal resources, usually 1 CPU and 512 MB or 1024 MB RAM;
 - hostnames based on a team login, ending in `S` and `SW`;
 - static private IPs:
@@ -30,9 +30,9 @@ The PDF asks Part 1 to provide:
 - K3s installed in agent mode on the second machine;
 - `kubectl` available for checking the cluster.
 
-This project uses `ubuntu/jammy64`, VirtualBox, Vagrant shell provisioning, and K3s.
+This project uses `generic/ubuntu2204` (Ubuntu 22.04 LTS), Libvirt/KVM (via `vagrant-libvirt`), Vagrant shell provisioning, and K3s.
 
-The correction PDF text says to check for CentOS. This implementation uses the stable `ubuntu/jammy64` box. If the local evaluator requires the literal CentOS wording, change the `server.vm.box` and `worker.vm.box` values in `vagrantfile`; the VM naming, IP, K3s, and cluster checks below are unchanged.
+The correction PDF text says to check for CentOS. This implementation uses the stable `generic/ubuntu2204` (Ubuntu 22.04 LTS) box. If the local evaluator requires the literal CentOS wording, change the `config.vm.box` value in `vagrantfile`; the VM naming, IP, K3s, and cluster checks below are unchanged.
 
 ## Evaluation Checklist
 
@@ -44,7 +44,7 @@ Use this path during defense to answer the Part 1 correction questions.
 | Two virtual machines are configured | `iargenceS` and `iargenceSW`. |
 | VM names include a login and end correctly | `iargenceS` ends with `S`; `iargenceSW` ends with `SW`. |
 | Static private IPs are configured | Server: `192.168.56.110`; worker: `192.168.56.111`. |
-| Private interface exists | Run `ip -br addr` or `ip addr show` inside each VM and find the interface carrying the required IP. On this Ubuntu box it is usually `enp0s8`, not `eth1`. |
+| Private interface exists | Run `ip -br addr` or `ip addr show` inside each VM and find the interface carrying the required IP. The scripts detect this dynamically (e.g. `eth1` on Libvirt, `enp0s8` on VirtualBox). |
 | Hostnames are correct | `vagrant ssh iargenceS -c hostname` and `vagrant ssh iargenceSW -c hostname`. |
 | Both machines use K3s | Server has `k3s`; worker has `k3s-agent`. |
 | Both machines are in the same cluster | Run `vagrant ssh iargenceS -c 'kubectl get nodes -o wide'`. |
@@ -78,23 +78,23 @@ The evaluator should understand that `iargenceS` is the K3s server/control-plane
 
 ### `vagrantfile`
 
-This is the only hand-written configuration file for Part 1. It tells Vagrant how to create the two VirtualBox machines required by the subject.
+This is the only hand-written configuration file for Part 1. It tells Vagrant how to create the two virtual machines required by the subject using the `libvirt` provider.
 
 - `Vagrant.configure("2")` selects Vagrant's version 2 configuration format.
-- `config.vm.synced_folder "./shared", "/vagrant_shared"` mounts the local `shared` directory inside both VMs. The server writes the K3s join token there, and the worker reads it from the same location.
+- `config.vm.box = "generic/ubuntu2204"` uses Ubuntu 22.04 LTS as the base image for both VMs (packaged with native support for both Libvirt/KVM and VirtualBox).
+- `config.vm.synced_folder "./shared", "/vagrant_shared", type: "9p", disabled: false` mounts the local `shared` directory inside both VMs using 9p filesystem sharing. The server writes the K3s join token there, and the worker reads it from the same location.
 - `config.vm.define "iargenceS"` declares the server VM.
-- `server.vm.box = "ubuntu/jammy64"` uses Ubuntu 22.04 as the base image for the server.
 - `server.vm.hostname = "iargenceS"` sets the VM hostname expected by the subject naming rule.
 - `server.vm.network "private_network", ip: "192.168.56.110"` gives the server its static private IP.
-- `vb.memory = 2048` gives the server 2 GB of RAM. This is higher than the minimum because K3s was unstable at 1 GB in this environment.
-- `vb.cpus = 1` keeps the server at one CPU.
+- `server.vm.provider :libvirt do |lv|` configures the Libvirt provider settings:
+  - `lv.memory = 2048` gives the server 2 GB of RAM for cluster stability.
+  - `lv.cpus = 1` keeps the server at one CPU.
+  - `lv.nested = true` enables nested virtualization if needed.
 - `server.vm.provision "shell", path: "scripts/server.sh"` runs the server install script during `vagrant up` or `vagrant provision`.
 - `config.vm.define "iargenceSW"` declares the worker VM.
-- `worker.vm.box = "ubuntu/jammy64"` uses the same Ubuntu base image for the worker.
 - `worker.vm.hostname = "iargenceSW"` sets the worker hostname.
 - `worker.vm.network "private_network", ip: "192.168.56.111"` gives the worker its static private IP.
-- `vb.memory = 1024` gives the worker 1 GB of RAM.
-- `vb.cpus = 1` keeps the worker at one CPU.
+- `worker.vm.provider :libvirt do |lv|` configures the worker VM with `lv.memory = 1024`, `lv.cpus = 1`, and `lv.nested = true`.
 - `worker.vm.provision "shell", path: "scripts/worker.sh"` runs the worker install script, which joins the server node.
 
 ### `shared/token`
@@ -175,7 +175,7 @@ The first version failed because it hard-coded the private network interface as 
 --flannel-iface=eth1
 ```
 
-On this `ubuntu/jammy64` box, the private interface is actually named `enp0s8`. Modern Linux distributions often use predictable interface names instead of older names like `eth0` and `eth1`.
+On this `generic/ubuntu2204` box, the private interface name depends on the hypervisor (e.g. `eth1` or `enp1s0` under Libvirt, `enp0s8` under VirtualBox). Modern Linux distributions often use predictable interface names instead of assuming a fixed interface name.
 
 K3s failed with an error like:
 

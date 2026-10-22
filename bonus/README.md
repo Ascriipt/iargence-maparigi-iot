@@ -93,7 +93,7 @@ This file customizes the official GitLab Helm chart for a small local lab cluste
 
 - `global.edition: ce` installs GitLab Community Edition.
 - `global.ingress.class: nginx` tells GitLab to use the nginx Ingress controller installed by the GitLab chart.
-- `global.ingress.configureCertmanager: false` disables cert-manager integration, which is unnecessary for this local HTTP setup.
+- `global.ingress.configureCertmanager: false` and `global.ingress.tls.enabled: false` disable cert-manager integration and TLS ingress, running everything via HTTP on port 80/8080.
 - `global.hosts.domain: 127.0.0.1.nip.io` makes GitLab create local-friendly hostnames that resolve back to localhost through `nip.io`.
 - `global.hosts.https: false` disables HTTPS for the GitLab web endpoints.
 - `certmanager.install: false` avoids installing cert-manager.
@@ -101,7 +101,9 @@ This file customizes the official GitLab Helm chart for a small local lab cluste
 - `prometheus.install: false` avoids installing Prometheus to keep the bonus cluster lighter.
 - `registry.enabled: false` disables the container registry because the app image is pulled from Docker Hub.
 - `nginx-ingress.enabled: true` enables the nginx Ingress controller bundled with the GitLab chart.
+- `nginx-ingress.controller.scope.enabled: false` disables ingress controller namespace scoping, allowing it to route Ingress resources across all namespaces (such as `dev`).
 - `nginx-ingress.controller.service.type: LoadBalancer` exposes nginx through the K3d load balancer, which is mapped to host port `8080` by the setup script.
+- `postgresql.metrics.enabled: false` and `redis.metrics.enabled: false` disable subchart metric exporters to save memory and CPU.
 
 ### `confs/argocd/application.yaml.tpl`
 
@@ -162,8 +164,9 @@ This is the main bonus setup script. It creates the K3d cluster, installs GitLab
 - `--k3s-arg "--disable=traefik@server:0"` disables K3s Traefik because GitLab's chart installs nginx Ingress.
 - The namespace commands create `gitlab`, `argocd`, and `dev` idempotently.
 - The `gitlab-root-password` secret stores the GitLab root password for the Helm chart.
+- The subchart images (Bitnami PostgreSQL, Redis, MinIO) are pulled, tagged, and imported into the K3d cluster to guarantee reliable image availability.
 - `helm repo add` and `helm repo update` configure the official GitLab chart repository.
-- `helm upgrade --install gitlab gitlab/gitlab ...` installs or updates GitLab using `confs/gitlab/values.yaml` plus runtime values.
+- `helm upgrade --install gitlab gitlab/gitlab ... --version 8.11.8` installs GitLab using pinned chart version `8.11.8` (GitLab 17.11) with `confs/gitlab/values.yaml` plus runtime values, avoiding schema breaks from chart v9/GitLab 18.
 - `wait_deployments` waits for GitLab deployments matching a label selector, and exits clearly if none are found.
 - The script waits for GitLab `webservice`, `sidekiq`, and `toolbox` deployments.
 - The `gitlab-rails runner` command inside the toolbox pod creates a root personal access token and a public `root/iot-gitops` project if needed.
