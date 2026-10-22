@@ -64,7 +64,6 @@ virt-customize -a "$DISK_IMAGE" \
   --run-command 'sed -i "s/^#*PasswordAuthentication.*/PasswordAuthentication yes/" /etc/ssh/sshd_config' \
   --run-command 'systemctl enable ssh' \
   --run-command 'printf "[Match]\nName=en*\n\n[Network]\nDHCP=yes\nDNS=1.1.1.1 8.8.8.8\n" > /etc/systemd/network/20-wired.network && systemctl enable systemd-networkd' \
-  --run-command 'rm -f /etc/resolv.conf && echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8" > /etc/resolv.conf' \
   --install rsync
 
 echo "=== [4/4] Launching Parent VM with virt-install ==="

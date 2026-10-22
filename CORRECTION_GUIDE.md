@@ -8,8 +8,26 @@ Ce guide pas à pas regroupe **toutes les commandes**, les **résultats attendus
 
 Toutes les parties (P1, P2, P3 et Bonus) tournent dans la **VM parente Debian 12** (`iot-parent`) configurée avec KVM/Libvirt et Docker natif pour s'affranchir des restrictions de VirtualBox sur les machines 42.
 
-### 0.1 Connexion depuis le poste 42 hôte
-Ouvrez un terminal sur votre machine 42 et lancez :
+---
+
+### 0.1 Gestion de la VM Parente (Allumer, Éteindre, Statut)
+
+Depuis le terminal de votre machine hôte 42 :
+
+| Action souhaitée | Commande simple | Commande manuelle équivalente |
+| :--- | :--- | :--- |
+| **Allumer la VM** | `./host/start_vm.sh` | `virsh -c qemu:///session start iot-parent` |
+| **Vérifier l'état de la VM** | `./host/status_vm.sh` | `virsh -c qemu:///session dominfo iot-parent` |
+| **Éteindre la VM proprement** | `./host/stop_vm.sh` | `virsh -c qemu:///session shutdown iot-parent` |
+| **Forcer l'arrêt (si bloquée)** | `./host/stop_vm.sh -f` | `virsh -c qemu:///session destroy iot-parent` |
+
+> [!TIP]
+> Lorsque vous quittez votre poste ou faites une pause, lancez `./host/stop_vm.sh` pour éteindre la VM proprement. À votre retour, un simple `./host/start_vm.sh` la rallume en quelques secondes en conservant tout votre travail intact.
+
+---
+
+### 0.2 Connexion depuis le poste 42 hôte
+Une fois la VM allumée, ouvrez un terminal sur votre machine 42 et lancez :
 ```bash
 ./host/enter_vm.sh
 # Ou directement : ssh -p 22222 vagrant@127.0.0.1 (mot de passe si demandé : vagrant)
@@ -19,16 +37,32 @@ Une fois dans la VM parente, placez-vous dans le répertoire du projet :
 cd ~/IOT
 ```
 
-### 0.2 Remise à zéro complète (Reset clean avant correction)
-Pour tout remettre à zéro avant de débuter l'évaluation (détruit toutes les VMs et clusters enfants, nettoie les logs) :
+---
+
+### 0.3 Remise à zéro complète (Reset clean avant correction)
+Pour tout remettre à zéro avant de débuter l'évaluation (détruit toutes les VMs et clusters enfants, nettoie les logs sans toucher aux outils installés dans la VM parente) :
 ```bash
 make clean
 ```
 
-### 0.3 Synchronisation rapide (si modifications sur l'hôte)
+---
+
+### 0.4 Synchronisation rapide (si modifications sur l'hôte)
 Si vous modifiez des fichiers sur l'hôte 42, vous pouvez synchroniser la VM en un clic depuis l'hôte :
 ```bash
 ./host/sync_project.sh
+```
+
+---
+
+### 0.5 Recréation complète de la VM à zéro (Cas d'urgence extrême)
+Si la machine virtuelle parente est supprimée ou corrompue et que `./host/start_vm.sh` indique qu'elle n'est plus définie :
+```bash
+# Depuis la machine hôte 42 :
+./host/setup_parent_vm.sh                                   # Recrée la VM et son disque
+ssh -p 22222 vagrant@127.0.0.1 'bash -s' < host/provision_debian.sh  # Installe les outils
+./host/sync_project.sh                                      # Synchronise le projet
+./host/enter_vm.sh                                          # Connexion
 ```
 
 ---
@@ -393,9 +427,15 @@ make clean-bonus
 ## 6. Synthèse des Commandes Rapides (Cheat Sheet)
 
 ```bash
-# Se connecter à la VM depuis le poste 42 hôte :
-./host/enter_vm.sh
+# Gestion de la VM parente (depuis l'hôte 42) :
+./host/start_vm.sh      # Allumer la VM
+./host/stop_vm.sh       # Éteindre proprement la VM
+./host/status_vm.sh     # Vérifier son état
+./host/enter_vm.sh      # Se connecter en SSH
 cd ~/IOT
+
+# Remise à zéro totale avant la soutenance :
+make clean
 
 # Partie 1 :
 make p1
