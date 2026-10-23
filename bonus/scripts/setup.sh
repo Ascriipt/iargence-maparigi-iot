@@ -152,9 +152,10 @@ user.password = ENV.fetch("GITLAB_ROOT_PASSWORD", "RootPassword42!")
 user.password_confirmation = ENV.fetch("GITLAB_ROOT_PASSWORD", "RootPassword42!")
 user.save(validate: false)
 
-token = user.personal_access_tokens.find_by(name: "iot-local-token")
-token&.destroy
-token = user.personal_access_tokens.create!(
+digest = Gitlab::CryptoHelper.sha256(ENV.fetch("IOT_TOKEN"))
+PersonalAccessToken.where(token_digest: digest).destroy_all
+user.personal_access_tokens.where(name: "iot-local-token").destroy_all
+token = user.personal_access_tokens.new(
   name: "iot-local-token",
   scopes: [:api, :read_repository, :write_repository],
   expires_at: 1.year.from_now
@@ -172,10 +173,15 @@ unless project
     namespace_id: user.namespace.id,
     visibility_level: Gitlab::VisibilityLevel::PUBLIC
   }).execute
-  raise result[:message].to_s unless result[:status] == :success
-  project = result[:project]
+  project = result.is_a?(Project) ? result : (result[:project] rescue nil)
+  project ||= Project.find_by_full_path(path)
+  raise "Project creation failed: #{project&.errors&.full_messages || result.inspect}" unless project&.persisted?
 end
 branch = project.protected_branches.find_by(name: "main") || project.protected_branches.new(name: "main")
+branch.push_access_levels.destroy_all
+branch.push_access_levels.new(access_level: Gitlab::Access::MAINTAINER)
+branch.merge_access_levels.destroy_all
+branch.merge_access_levels.new(access_level: Gitlab::Access::MAINTAINER)
 branch.allow_force_push = true
 branch.save!
 '
